@@ -1,0 +1,345 @@
+{# #new change: use the combined candidate name in applicant-card search and display. #}
+<div class="pipeline-card" id="card-{{ app.id }}" data-app-id="{{ app.id }}" data-status="{{ app.status }}" data-name="{{ (app.candidate.full_name or '') + ' ' + app.candidate.email }}" data-interview-pending="{{ '0' if app.interview_transcript else '1' }}" onclick="toggleCard({{ app.id }}, event)">
+
+    <!-- Summary row (always visible) -->
+    <div class="pipeline-header">
+        <input type="checkbox" class="bulk-select-check form-check-input mt-0" style="flex-shrink:0;"
+               onclick="event.stopPropagation()" onchange="toggleBulkSelect({{ app.id }}, this)">
+        <div class="rank-bubble">#{{ loop.index }}</div>
+
+        <div class="flex-grow-1 min-width-0">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="candidate-name">
+                    {% if blind_mode %}{{ blind_labels.get(app.id, 'Candidate') }}
+                    {% else %}{{ app.candidate.full_name or app.candidate.email.split('@')[0] }}{% endif %}
+                </span>
+                <span class="badge-status {{ app.status }}">{{ app.status }}</span>
+                {% if app.interview_verdict == 'Pending' %}
+                    <span class="badge-status interviewing" title="Our AI couldn't produce a clean verdict for this interview - review the transcript manually">
+                        <i class="fas fa-robot me-1" style="font-size:0.65rem;"></i>Needs manual review
+                    </span>
+                {% elif app.interview_verdict %}
+                    <span class="badge-status {{ 'hired' if 'Yes' in app.interview_verdict else 'rejected' }}" title="AI interview verdict">
+                        <i class="fas fa-robot me-1" style="font-size:0.65rem;"></i>{{ app.interview_verdict }}
+                    </span>
+                {% else %}
+                    <span class="badge-status interviewing" title="Awaiting interview">
+                        <i class="fas fa-hourglass-half me-1" style="font-size:0.65rem;"></i>Interview Pending
+                    </span>
+                {% endif %}
+                {% set ai_data = ai_likelihoods.get(app.id) %}
+                {% if ai_data %}
+                    {% set ai_score = ai_data.score %}
+                    {% if ai_score < 35 %}
+                        <span class="ai-badge-human" title="AI Detection: {{ ai_score }}/100 - {{ ai_data.label }}">
+                            <i class="fas fa-user-check" style="font-size:0.65rem;"></i>{{ ai_data.label }}
+                        </span>
+                    {% elif ai_score < 65 %}
+                        <span class="ai-badge-unsure" title="AI Detection: {{ ai_score }}/100 - {{ ai_data.label }}">
+                            <i class="fas fa-circle-question" style="font-size:0.65rem;"></i>{{ ai_data.label }}
+                        </span>
+                    {% else %}
+                        <span class="ai-badge-ai" title="AI Detection: {{ ai_score }}/100 - {{ ai_data.label }}">
+                            <i class="fas fa-robot" style="font-size:0.65rem;"></i>{{ ai_data.label }}
+                        </span>
+                    {% endif %}
+                {% endif %}
+                {% if app.status == 'hired' %}
+                    {% if app.hire_pay_type == 'hourly' and app.hire_engagement_ended_at %}
+                        <span class="badge-status applied"><i class="fas fa-circle-stop me-1"></i>Billing ended</span>
+                    {% elif app.hire_pay_type == 'hourly' and app.fee_paid %}
+                        <span class="badge-status hired" title="Bills monthly for as long as the engagement stays active"><i class="fas fa-rotate me-1"></i>Billing active</span>
+                    {% elif app.fee_paid %}
+                        <span class="badge-status hired"><i class="fas fa-circle-check me-1"></i>Fee Paid</span>
+                    {% elif app.stripe_payment_link %}
+                        <span class="badge-status applied"><i class="fas fa-clock me-1"></i>Fee Pending</span>
+                    {% elif app.candidate_confirmed_hire %}
+                        <span class="badge-status applied"><i class="fas fa-clock me-1"></i>Confirmed - invoice pending</span>
+                    {% else %}
+                        <span class="badge-status applied" title="The candidate hasn't confirmed the hire yet - no fee invoice will be sent until they do"><i class="fas fa-hourglass-half me-1"></i>Awaiting candidate confirmation</span>
+                    {% endif %}
+                {% endif %}
+            </div>
+            <div class="candidate-email mt-1">
+                {% if not blind_mode %}{{ app.candidate.email }} &middot; {% endif %}Applied {{ app.created_at|time_ago }}
+                {% if app.status not in ('applied', 'hired', 'rejected') %}
+                    &middot; <span style="color:var(--warning);">{{ app.created_at|time_ago }} in {{ app.status }}</span>
+                {% endif %}
+                {% if app.employer_notes %}
+                    &middot; <span style="color:var(--primary);"><i class="fas fa-note-sticky" style="font-size:0.7rem;"></i> Note</span>
+                {% endif %}
+            </div>
+            {% if summaries.get(app.id) %}
+                <p class="text-muted mb-0 mt-1" style="font-size:0.8rem; line-height:1.5;">{{ summaries.get(app.id) }}</p>
+            {% endif %}
+
+            {% set meeting = meetings.get(app.id) %}
+            {% if meeting %}
+            <div class="meeting-chip">
+                <i class="fas {{ 'fa-video' if meeting.type == 'virtual' else 'fa-handshake' }}"></i>
+                {{ 'Video call' if meeting.type == 'virtual' else 'In-person' }} on {{ meeting.date }} at {{ meeting.time }}
+            </div>
+            {% endif %}
+        </div>
+
+        {% set cscore = composite_scores.get(app.id, app.match_score or 0) %}
+        <div class="d-flex flex-column align-items-center gap-1 flex-shrink-0" title="Overall score - Resume (45%) + Interview (45%) + Authenticity (10%)">
+            <span class="score-pill {{ 'high' if cscore >= 70 else ('mid' if cscore >= 40 else 'low') }}">{{ cscore }}</span>
+            <span class="text-muted" style="font-size:0.65rem; font-weight:500;">OVERALL</span>
+        </div>
+
+        <i class="fas fa-chevron-down pipeline-expand-icon"></i>
+    </div>
+
+    <!-- Expanded body -->
+    <div class="pipeline-body">
+
+        <!-- Tab switcher -->
+        <div class="card-tabs">
+            <div class="card-tab active" id="tab-overview-{{ app.id }}" onclick="switchAppTab({{ app.id }}, 'overview', event)">
+                <i class="fas fa-chart-bar me-1"></i> Overview
+            </div>
+            <div class="card-tab" id="tab-resume-{{ app.id }}" onclick="switchAppTab({{ app.id }}, 'resume', event)">
+                <i class="fas fa-file-lines me-1"></i> Resume &amp; Profile
+            </div>
+            <div class="card-tab" id="tab-notes-{{ app.id }}" onclick="switchAppTab({{ app.id }}, 'notes', event)">
+                <i class="fas fa-note-sticky me-1"></i> Notes{% if app.employer_notes %} <span style="width:6px;height:6px;border-radius:50%;background:var(--primary);display:inline-block;margin-left:3px;vertical-align:middle;"></span>{% endif %}
+            </div>
+            <div class="card-tab" id="tab-messages-{{ app.id }}" onclick="switchAppTab({{ app.id }}, 'messages', event)">
+                <i class="fas fa-message me-1"></i> Messages
+                {% set unread_for_app = app.messages | rejectattr('read') | selectattr('sender_user_id', 'ne', current_user.id) | list %}
+                {% if unread_for_app %}<span class="badge bg-primary ms-1" style="font-size:0.6rem;">{{ unread_for_app|length }}</span>{% endif %}
+            </div>
+        </div>
+
+        <!-- ── OVERVIEW TAB ── -->
+        <div id="pane-overview-{{ app.id }}">
+
+            <!-- Actions -->
+            <div class="action-bar">
+                {% if app.status == 'applied' %}
+                <button type="button" class="btn btn-outline-success btn-sm" title="Advance to Interviewing - one click"
+                        onclick="quickAdvance({{ app.id }}, event)">
+                    <i class="fas fa-forward"></i> Advance
+                </button>
+                {% endif %}
+                {% if app.status in ('applied', 'interviewing') %}
+                <button type="button" class="btn btn-outline-danger btn-sm" title="Reject - one click"
+                        onclick="quickReject({{ app.id }}, event)">
+                    <i class="fas fa-xmark"></i> Reject
+                </button>
+                {% endif %}
+
+                {% if app.status == 'rejected' %}
+                <!-- Final decision - not editable. Backend also refuses to change status away from rejected. -->
+                <span class="badge-status rejected" style="font-size:0.8rem;padding:6px 12px;">
+                    <i class="fas fa-lock me-1"></i>Rejected - final decision
+                </span>
+
+                {% else %}
+                <form method="POST" action="{{ url_for('employer.update_status', application_id=app.id) }}" class="d-flex gap-1 flex-wrap align-items-start"
+                      enctype="multipart/form-data" onsubmit="return confirmReject(this)">
+                    {% if app.status == 'hired' %}
+                    <!-- Locked to "hired" - the decision itself can't be reversed, but the
+                         compensation figure below can still be corrected (e.g. after a candidate dispute). -->
+                    <input type="hidden" name="status" value="hired">
+                    <span class="badge-status hired" style="font-size:0.8rem;padding:6px 12px;">
+                        <i class="fas fa-lock me-1"></i>Hired - final decision
+                    </span>
+                    {% else %}
+                    <select name="status" class="form-select form-select-sm" style="min-width:130px;" onchange="toggleHireSalaryFields({{ app.id }}, this.value)">
+                        <option value="applied"      {{ 'selected' if app.status == 'applied' }}>Applied</option>
+                        <option value="interviewing" {{ 'selected' if app.status == 'interviewing' }}>Interviewing</option>
+                        <option value="hired"        {{ 'selected' if app.status == 'hired' }}>Hired</option>
+                        <option value="rejected"     {{ 'selected' if app.status == 'rejected' }}>Rejected</option>
+                    </select>
+                    {% endif %}
+                    <button type="submit" class="btn btn-primary btn-sm">{{ 'Update Compensation' if app.status == 'hired' else 'Update' }}</button>
+
+                    <div id="hireSalaryFields-{{ app.id }}" class="d-flex gap-1 flex-wrap align-items-center w-100 mt-1" style="display:{{ 'flex' if app.status == 'hired' else 'none' }} !important;">
+                        <span class="text-muted" style="font-size:0.72rem; width:100%;">Actual hire compensation - this is what the placement fee is based on, not the job posting:</span>
+                        <input type="number" name="hire_salary_usd" min="1" step="1" class="form-control form-control-sm" style="max-width:110px;"
+                               placeholder="Amount" value="{{ app.hire_salary_usd or '' }}" required>
+                        <select name="hire_pay_type" class="form-select form-select-sm" style="max-width:130px;" required>
+                            <option value="yearly"  {{ 'selected' if app.hire_pay_type == 'yearly' or not app.hire_pay_type }}>Per year</option>
+                            <option value="hourly"  {{ 'selected' if app.hire_pay_type == 'hourly' }}>Per hour</option>
+                            <option value="monthly" {{ 'selected' if app.hire_pay_type == 'monthly' }}>Per month</option>
+                            <option value="stipend" {{ 'selected' if app.hire_pay_type == 'stipend' }}>Stipend (total)</option>
+                            <option value="contract" {{ 'selected' if app.hire_pay_type == 'contract' }}>Contract (total)</option>
+                        </select>
+                        <label class="btn btn-outline-secondary btn-sm mb-0" style="font-size:0.75rem;" title="Optional: attach an offer letter or screenshot">
+                            <i class="fas fa-paperclip me-1"></i>Evidence
+                            <input type="file" name="hire_evidence" accept=".png,.jpg,.jpeg,.pdf" class="d-none">
+                        </label>
+                        {% if app.hire_evidence_filename %}
+                        <a href="{{ url_for('employer.hire_evidence', application_id=app.id) }}" target="_blank" class="small text-muted"><i class="fas fa-file me-1"></i>Current file</a>
+                        {% endif %}
+                        {% if app.hire_salary_disputed %}
+                        <span class="badge-status rejected" style="font-size:0.68rem;"><i class="fas fa-triangle-exclamation me-1"></i>Candidate disputed this figure</span>
+                        {% endif %}
+                    </div>
+                </form>
+
+                {% if app.status == 'hired' and app.hire_pay_type == 'hourly' and app.hire_billing_subscription_id %}
+                    {% if app.hire_engagement_ended_at %}
+                    <span class="text-muted" style="font-size:0.75rem;"><i class="fas fa-circle-check me-1"></i>Engagement ended - billing stopped</span>
+                    {% else %}
+                    {# #new change: use the combined candidate name in the billing confirmation. #}
+                    <form method="POST" action="{{ url_for('employer.end_hourly_engagement', application_id=app.id) }}"
+                          data-confirm-title="End this engagement?"
+                          data-confirm-message="This cancels monthly placement-fee billing for {{ app.candidate.full_name or 'this candidate' }} going forward. Use this once the hourly engagement has actually ended - it can't be undone."
+                          data-confirm-btn="Yes, end billing">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm" title="Stop monthly billing - the engagement has ended">
+                            <i class="fas fa-circle-stop me-1"></i> End Engagement
+                        </button>
+                    </form>
+                    {% endif %}
+                {% endif %}
+                {% endif %}
+                {% if app.id in feedback_prompt_ids %}
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openPlatformFeedbackModal({{ app.id }}); event.stopPropagation();">
+                    <i class="fas fa-star me-1"></i> Rate your experience
+                </button>
+                {% endif %}
+                <button class="btn btn-outline-primary btn-sm" onclick="toggleSchedule({{ app.id }}, 'virtual', event)">
+                    <i class="fas fa-video me-1"></i> Video Call
+                </button>
+                <button class="btn btn-outline-primary btn-sm" onclick="toggleSchedule({{ app.id }}, 'in_person', event)">
+                    <i class="fas fa-handshake me-1"></i> In-Person
+                </button>
+                <button class="btn btn-outline-primary btn-sm" onclick="togglePropose({{ app.id }}, event)">
+                    <i class="fas fa-calendar me-1"></i> Propose Times
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="toggleInAppMeeting({{ app.id }}, event)">
+                    <i class="fas fa-circle-dot me-1"></i> Start Now
+                </button>
+            </div>
+
+            <!-- Schedule form -->
+            <div class="schedule-form" id="schedule-{{ app.id }}" style="display:none;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <strong class="small" id="scheduleTitle-{{ app.id }}">Schedule Meeting</strong>
+                    <button type="button" class="btn btn-sm btn-link text-muted p-0" onclick="document.getElementById('schedule-{{ app.id }}').style.display='none'; event.stopPropagation();">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <form method="POST" action="{{ url_for('employer.schedule_meeting', application_id=app.id) }}">
+                    <input type="hidden" name="meeting_type" id="meetingType-{{ app.id }}" value="virtual">
+                    <div class="row g-2 mb-2">
+                        <div class="col-sm-4">
+                            <label class="form-label small fw-semibold">Date</label>
+                            <input type="date" class="form-control form-control-sm" name="date" required>
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="form-label small fw-semibold">Time</label>
+                            <input type="time" class="form-control form-control-sm" name="time" required>
+                        </div>
+                        <div class="col-sm-5">
+                            <label class="form-label small fw-semibold" id="locationLabel-{{ app.id }}">Meeting link</label>
+                            <input type="text" class="form-control form-control-sm" name="location_or_url"
+                                   id="locationInput-{{ app.id }}" placeholder="https://zoom.us/j/..." required>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold">Notes (optional)</label>
+                        <textarea class="form-control form-control-sm" name="notes" rows="2" placeholder="Any additional details…"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="fas fa-paper-plane me-1"></i> Send Invite
+                    </button>
+                </form>
+            </div>
+
+            <!-- Propose Times form -->
+            <div class="schedule-form" id="propose-{{ app.id }}" style="display:none;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <strong class="small"><i class="fas fa-calendar me-1 text-primary"></i>Propose interview times</strong>
+                    <button type="button" class="btn btn-sm btn-link text-muted p-0" onclick="document.getElementById('propose-{{ app.id }}').style.display='none'; event.stopPropagation();">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <p class="text-muted mb-3" style="font-size:0.82rem;">
+                    Offer up to 3 time slots. The candidate picks one and the interview room is created instantly.
+                </p>
+                <form method="POST" action="{{ url_for('employer.propose_times', application_id=app.id) }}">
+                    {% for i in [1, 2, 3] %}
+                    <div class="row g-2 mb-2 align-items-center">
+                        <div class="col-auto text-muted" style="font-size:0.8rem;width:28px;">{{ i }}.</div>
+                        <div class="col">
+                            <input type="date" class="form-control form-control-sm" name="date_{{ i }}">
+                        </div>
+                        <div class="col-auto">
+                            <input type="time" class="form-control form-control-sm" name="time_{{ i }}">
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <div class="mb-2 mt-1">
+                        <input type="text" class="form-control form-control-sm" name="notes" placeholder="Any notes for the candidate (optional)">
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="fas fa-paper-plane me-1"></i> Send to Candidate
+                    </button>
+                </form>
+            </div>
+
+            <!-- In-app meeting form -->
+            <div class="schedule-form" id="inapp-{{ app.id }}" style="display:none;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <strong class="small"><i class="fas fa-circle-dot me-1 text-primary"></i>Create live in-app interview room</strong>
+                    <button type="button" class="btn btn-sm btn-link text-muted p-0" onclick="document.getElementById('inapp-{{ app.id }}').style.display='none'; event.stopPropagation();">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <p class="text-muted mb-3" style="font-size:0.82rem;">
+                    A private video room will be created on Avants. The candidate receives a join link by email. Calls are recorded and saved for you to review.
+                </p>
+                <form method="POST" action="{{ url_for('employer.create_meeting_room', application_id=app.id) }}">
+                    <div class="row g-2 mb-2">
+                        <div class="col-sm-4">
+                            <label class="form-label small fw-semibold">Date</label>
+                            <input type="date" class="form-control form-control-sm" name="date" required>
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="form-label small fw-semibold">Time</label>
+                            <input type="time" class="form-control form-control-sm" name="time" required>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold">Notes (optional)</label>
+                        <textarea class="form-control form-control-sm" name="notes" rows="2" placeholder="Any details to include in the invite…"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="fas fa-circle-dot me-1"></i> Create Room &amp; Send Invite
+                    </button>
+                </form>
+                {% if app.meeting_rooms %}
+                <div class="mt-3 pt-3" style="border-top:1px solid var(--border);">
+                    <div class="text-muted mb-2" style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Past rooms</div>
+                    {% for mr in app.meeting_rooms %}
+                    <div class="d-flex align-items-center gap-2 mb-1" style="font-size:0.82rem;">
+                        <a href="{{ url_for('views.join_meeting', room_name=mr.room_name) }}" target="_blank" class="text-primary">
+                            <i class="fas fa-video me-1"></i>{{ mr.scheduled_date or 'Unscheduled' }} {{ mr.scheduled_time or '' }}
+                        </a>
+                        <span class="text-muted">·</span>
+                        <a href="{{ url_for('employer.employer_meetings') }}" class="text-muted" style="font-size:0.78rem;">View recordings</a>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Work authorization -->
+            {% set wa = work_auths.get(app.id) %}
+            {% if wa %}
+            <div class="detail-section">
+                <div class="detail-section-label">Work Authorization</div>
+                <table class="wa-table">
+                    <tr><td>Location</td><td>{{ wa.city }}, {{ wa.state }}, {{ wa.country }} {{ wa.postal_code }}</td></tr>
+                    <tr><td>Date of birth</td><td>{{ wa.date_of_birth }}</td></tr>
+                    <tr><td>Work authorized</td><td>{{ 'Confirmed' if wa.work_authorization_confirmed else 'Not confirmed' }}</td></tr>
+                    <tr><td>Signature</td><td>{{ wa.signature_full_name }}, signed {{ wa.signature_date }}</td></tr>
+                </table>
+            </div>
+            {% endif %}
+
+            <!-- Overall score breakdown -->

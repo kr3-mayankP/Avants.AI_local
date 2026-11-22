@@ -42,11 +42,13 @@
         <div class="d-flex align-items-center gap-3 px-4 py-3 flex-wrap" style="border-bottom:1px solid var(--border);">
             <div class="flex-grow-1">
                 <div class="fw-semibold" style="font-size:0.9rem;">
-                    {{ r.referrer.first_name or '-' }}
+                    <!-- #new change: show the referrer's combined name in admin lists. -->
+                    {{ r.referrer.full_name or '-' }}
                     <span class="text-muted fw-normal">{{ r.referrer.email }}</span>
                 </div>
                 <div class="text-muted" style="font-size:0.78rem;">
-                    Referred {{ r.referred.first_name or r.referred.email }}
+                    <!-- #new change: show the referred user's combined name. -->
+                    Referred {{ r.referred.full_name or r.referred.email }}
                     {% if r.application and r.application.job %} &middot; hired for {{ r.application.job.title }} at {{ r.application.job.company.name }}{% endif %}
                 </div>
             </div>
@@ -56,7 +58,7 @@
             </div>
 
             <form method="POST" action="{{ url_for('admin_bp.mark_referral_paid', referral_id=r.id) }}"
-                  data-confirm-title="Mark ${{ '{:,}'.format(r.commission_usd) }} to {{ r.referrer.first_name or r.referrer.email }} as paid?"
+                  data-confirm-title="Mark ${{ '{:,}'.format(r.commission_usd) }} to {{ r.referrer.full_name or r.referrer.email }} as paid?"
                   data-confirm-message="This just records that you paid them outside the app (e.g. Venmo/PayPal) - it doesn't move any money itself."
                   data-confirm-btn="Mark as paid">
                 <button class="btn btn-sm btn-success fw-bold">
@@ -77,11 +79,13 @@
         <div class="d-flex align-items-center gap-3 px-4 py-3 flex-wrap" style="border-bottom:1px solid var(--border);">
             <div class="flex-grow-1">
                 <div class="fw-semibold" style="font-size:0.9rem;">
-                    {{ r.referrer.first_name or '-' }}
+                    <!-- #new change: show the referrer's combined name in paid referrals. -->
+                    {{ r.referrer.full_name or '-' }}
                     <span class="text-muted fw-normal">{{ r.referrer.email }}</span>
                 </div>
                 <div class="text-muted" style="font-size:0.78rem;">
-                    Referred {{ r.referred.first_name or r.referred.email }} &middot; paid {{ r.paid_at | time_ago }}
+                    <!-- #new change: show the referred user's combined name in paid referrals. -->
+                    Referred {{ r.referred.full_name or r.referred.email }} &middot; paid {{ r.paid_at | time_ago }}
                 </div>
             </div>
             <div class="fw-bold text-muted" style="font-size:1rem;">

@@ -2,60 +2,7 @@
 {% block title %}Interview Coaching | {{ job.title }}{% endblock %}
 
 {% block head %}
-<style>
-    .coaching-header {
-        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-        color: white;
-        border-radius: var(--radius);
-        padding: 32px;
-        margin-bottom: 24px;
-        text-align: center;
-    }
-    .score-ring {
-        width: 96px; height: 96px;
-        border-radius: 50%;
-        background: rgba(255,255,255,0.2);
-        display: flex; align-items: center; justify-content: center;
-        margin: 0 auto 12px;
-        font-size: 2rem; font-weight: 800;
-    }
-    .coaching-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 20px 24px;
-        margin-bottom: 16px;
-    }
-    .coaching-card-title {
-        font-size: 0.72rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: var(--text-muted);
-        margin-bottom: 12px;
-    }
-    .coaching-item {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 10px;
-        align-items: flex-start;
-        font-size: 0.88rem;
-    }
-    .coaching-item:last-child { margin-bottom: 0; }
-    .coaching-icon {
-        width: 24px; height: 24px;
-        border-radius: 50%;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 0.65rem;
-        flex-shrink: 0;
-        margin-top: 1px;
-    }
-    .ci-strength { background: var(--success-soft); color: var(--success); }
-    .ci-improve  { background: var(--warning-soft); color: var(--warning); }
-    .ci-tip      { background: var(--primary-soft); color: var(--primary); }
-    .score-bar-wrap { height: 8px; background: var(--border); border-radius: 99px; overflow: hidden; margin-top: 6px; }
-    .score-bar-fill { height: 100%; border-radius: 99px; transition: width 0.6s ease; }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/interview_coaching.css') }}">
 {% endblock %}
 
 {% block content %}

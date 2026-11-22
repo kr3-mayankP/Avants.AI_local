@@ -1,0 +1,409 @@
+/* ============================================================
+   RESUME CHAT
+   ============================================================ */
+(function () {
+    // resume-chat-data is always rendered in the template; read context if available
+    const dataEl = document.getElementById('resume-chat-data');
+    let chatCtx = { jobText: '', analysis: '' };
+    if (dataEl) {
+        try { chatCtx = JSON.parse(dataEl.textContent); }
+        catch (e) { /* keep defaults */ }
+    }
+
+    let chatJobText  = chatCtx.jobText  || '';
+    let chatAnalysis = chatCtx.analysis || '';
+
+    const messagesEl = document.getElementById('chat-messages');
+    const typingEl   = document.getElementById('chat-typing');
+    const inputEl    = document.getElementById('chat-input');
+    const sendBtn    = document.getElementById('chat-send');
+
+    // Bail out only if the chat UI elements are genuinely missing
+    if (!messagesEl || !typingEl || !inputEl || !sendBtn) return;
+
+    const conversationHistory = [];   // [{role, content}, …]
+
+    // Which saved match (analysisNotes entry id) new chat messages persist
+    // into. Set whenever a fresh match is auto-saved, or a saved match is
+    // opened via "View" / auto-restore.
+    let activeMatchId = null;
+    window.setActiveMatchId = function (id) { activeMatchId = id; };
+
+    // ── context switch (called on fresh match, "View", and auto-restore) ──
+    window.updateChatContext = function (jobText, analysis, conversation, matchId) {
+        chatJobText   = jobText;
+        chatAnalysis  = analysis;
+        activeMatchId = matchId ?? null;
+
+        // Remove all bubbles except the typing indicator
+        while (messagesEl.firstChild && messagesEl.firstChild !== typingEl) {
+            messagesEl.removeChild(messagesEl.firstChild);
+        }
+
+        conversationHistory.length = 0;
+
+        if (Array.isArray(conversation) && conversation.length > 0) {
+            // Replay the saved conversation for this match instead of
+            // resetting to a fresh greeting.
+            conversation.forEach(msg => {
+                if (!msg || !msg.content) return;
+                appendMessage(msg.role === 'user' ? 'user' : 'ai', msg.content);
+                conversationHistory.push({ role: msg.role, content: msg.content });
+            });
+        } else {
+            appendMessage('ai',
+                "I've loaded a saved analysis. What would you like to improve on your resume for this role? " +
+                "Ask me about missing skills, experience gaps, formatting, or anything else."
+            );
+        }
+    };
+
+    // Persist the current conversation onto its match's saved entry, if any.
+    function persistConversation() {
+        if (activeMatchId == null) return;
+        try {
+            const history = JSON.parse(localStorage.getItem("analysisNotes")) || [];
+            const idx = history.findIndex(h => h.id === activeMatchId);
+            if (idx === -1) return;
+            history[idx].conversation = conversationHistory.slice(-40);
+            localStorage.setItem("analysisNotes", JSON.stringify(history));
+        } catch (e) { /* best-effort - never block chat on a storage error */ }
+    }
+
+    // ── helpers ───────────────────────────────────────────────
+    function escapeHtml(str) {
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function appendMessage(role, text) {
+        // move the typing indicator back to the very end after adding a bubble
+        const div = document.createElement('div');
+        div.className = 'chat-message ' + (role === 'ai' ? 'ai-msg' : 'user-msg');
+
+        const avatarDiv = document.createElement('div');
+        avatarDiv.className = 'chat-avatar ' + (role === 'ai' ? 'ai' : 'user');
+        avatarDiv.innerHTML = role === 'ai'
+            ? '<i class="fas fa-robot"></i>'
+            : '<i class="fas fa-user"></i>';
+
+        const bubbleDiv = document.createElement('div');
+        bubbleDiv.className = 'chat-bubble ' + (role === 'ai' ? 'ai-bubble' : 'user-bubble');
+        bubbleDiv.innerHTML = escapeHtml(text).replace(/\n/g, '<br>');
+
+        div.appendChild(avatarDiv);
+        div.appendChild(bubbleDiv);
+
+        // Insert before the typing indicator so typing always stays last
+        messagesEl.insertBefore(div, typingEl);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function appendJobLinks(jobs) {
+        if (!jobs || !jobs.length) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'chat-job-links';
+        jobs.forEach(job => {
+            const a = document.createElement('a');
+            a.className = 'chat-job-link';
+            a.href = job.url;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.innerHTML =
+                '<div class="cjl-title">' + escapeHtml(job.title) + '</div>' +
+                '<div class="cjl-meta">' + escapeHtml(job.company) + (job.location ? ' &middot; ' + escapeHtml(job.location) : '') + '</div>';
+            wrap.appendChild(a);
+        });
+        messagesEl.insertBefore(wrap, typingEl);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function setTyping(visible) {
+        typingEl.style.display = visible ? 'flex' : 'none';
+        if (visible) messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function setInputLocked(locked) {
+        inputEl.disabled = locked;
+        sendBtn.disabled = locked;
+    }
+
+    // ── send ─────────────────────────────────────────────────
+    async function sendMessage() {
+        const message = inputEl.value.trim();
+        if (!message) return;
+
+        inputEl.value = '';
+        setInputLocked(true);
+
+        appendMessage('user', message);
+        conversationHistory.push({ role: 'user', content: message });
+        setTyping(true);
+
+        try {
+            const resp = await fetch('/resume-chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message:          message,
+                    job_description:  chatJobText,
+                    resume_analysis:  chatAnalysis,
+                    history:          conversationHistory.slice(-20)
+                })
+            });
+
+            const data = await resp.json();
+            setTyping(false);
+
+            const reply = data.reply || 'Sorry, something went wrong. Please try again.';
+            appendMessage('ai', reply);
+            appendJobLinks(data.matching_jobs);
+            conversationHistory.push({ role: 'assistant', content: reply });
+            persistConversation();
+
+        } catch (err) {
+            setTyping(false);
+            appendMessage('ai', 'Connection error - please try again.');
+        }
+
+        setInputLocked(false);
+        inputEl.focus();
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    inputEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    // ── Quick suggestion chips ────────────────────────────
+    document.querySelectorAll('.suggestion-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            inputEl.value = btn.textContent.trim();
+            inputEl.focus();
+            sendMessage();
+        });
+    });
+})();
+
+
+    </script>
+
+<script>
+(function () {
+    const uploadArea = document.getElementById('video-upload-area');
+    const fileInput = document.getElementById('video-file-upload');
+    if (!uploadArea || !fileInput) return;  // visitor isn't signed in - widget isn't rendered
+
+    const fileNameDisplay = document.getElementById('video-file-name');
+    const analyzeBtn = document.getElementById('video-analyze-btn');
+    const errorMessage = document.getElementById('video-error-message');
+    const overlay = document.getElementById('video-loading-overlay');
+    const resultsBox = document.getElementById('video-results');
+
+    function showError(message) {
+        errorMessage.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>' + message;
+        errorMessage.style.display = 'block';
+        errorMessage.classList.remove('fade-out');
+        setTimeout(() => errorMessage.classList.add('fade-out'), 4000);
+        setTimeout(() => { errorMessage.style.display = 'none'; errorMessage.classList.remove('fade-out'); }, 5000);
+    }
+
+    function formatMB(bytes) {
+        return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
+    }
+
+    function setFile(file) {
+        if (!file) return;
+        fileInput.files = (() => {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            return dt.files;
+        })();
+        applySelectedFile(file);
+    }
+
+    const uploadIcon = document.getElementById('video-upload-icon');
+    const uploadMainText = document.getElementById('video-upload-main-text');
+
+    function applySelectedFile(file) {
+        fileNameDisplay.textContent = '✓ ' + file.name + ' (' + formatMB(file.size) + ')';
+        fileNameDisplay.classList.add('has-file');
+        uploadArea.classList.add('has-file');
+        if (uploadIcon) { uploadIcon.classList.remove('fa-video'); uploadIcon.classList.add('fa-circle-check', 'text-success'); uploadIcon.classList.remove('text-primary'); }
+        if (uploadMainText) uploadMainText.textContent = 'Video uploaded - click to change';
+        analyzeBtn.disabled = false;
+    }
+
+    function clearSelectedFile() {
+        fileNameDisplay.textContent = 'No file chosen';
+        fileNameDisplay.classList.remove('has-file');
+        uploadArea.classList.remove('has-file');
+        if (uploadIcon) { uploadIcon.classList.add('fa-video'); uploadIcon.classList.remove('fa-circle-check', 'text-success'); uploadIcon.classList.add('text-primary'); }
+        if (uploadMainText) uploadMainText.textContent = 'Drag & drop your interview video here';
+        analyzeBtn.disabled = true;
+    }
+
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) setFile(e.dataTransfer.files[0]);
+    });
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            applySelectedFile(fileInput.files[0]);
+        } else {
+            clearSelectedFile();
+        }
+    });
+
+    function showVideoCoachingReport(coaching, jobFit, overallScore) {
+        const fitBox = document.getElementById('video-job-fit');
+        if (jobFit && jobFit.verdict) {
+            const fitColors = { 'Strong Yes': '#198754', 'Yes': '#4a90e2', 'No': '#ffc107', 'Strong No': '#dc3545' };
+            const fitLabels = { 'Strong Yes': 'Strong Fit', 'Yes': 'Good Fit', 'No': 'Weak Fit', 'Strong No': 'Not a Fit' };
+            const badge = document.getElementById('video-job-fit-badge');
+            badge.textContent = fitLabels[jobFit.verdict] || jobFit.verdict;
+            badge.style.backgroundColor = fitColors[jobFit.verdict] || '#6c757d';
+            badge.style.color = '#fff';
+            document.getElementById('video-job-fit-reasoning').textContent = jobFit.reasoning || '';
+
+            const missedWrap = document.getElementById('video-job-fit-missed-wrap');
+            const missedList = document.getElementById('video-job-fit-missed');
+            const missed = jobFit.missed_requirements || [];
+            if (missed.length) {
+                missedList.innerHTML = '';
+                missed.forEach(m => {
+                    const row = document.createElement('div');
+                    row.className = 'coaching-item';
+                    row.innerHTML = `<div class="ci-dot ci-i"><i class="fas fa-triangle-exclamation"></i></div><span>${m}</span>`;
+                    missedList.appendChild(row);
+                });
+                missedWrap.style.display = 'block';
+            } else {
+                missedWrap.style.display = 'none';
+            }
+
+            fitBox.style.display = 'block';
+        } else {
+            fitBox.style.display = 'none';
+        }
+
+        const cs = coaching.communication_score || 0;
+        // Falls back to the communication score alone when there's no
+        // separate overall score (e.g. restoring an older saved scan from
+        // before this existed, or no job description was given at scan time).
+        const headline = (typeof overallScore === 'number') ? overallScore : cs;
+        const color = headline >= 75 ? 'var(--success)' : (headline >= 50 ? 'var(--warning)' : 'var(--danger)');
+
+        const ring = document.getElementById('videoScoreRing');
+        ring.textContent = headline;
+        ring.style.borderColor = color;
+        ring.style.color = color;
+
+        const label = document.getElementById('videoScoreLabel');
+        const csLine = document.getElementById('video-communication-score-line');
+        if (typeof overallScore === 'number' && overallScore !== cs) {
+            label.textContent = 'Overall Score';
+            csLine.textContent = `Communication Score: ${cs}/100`;
+            csLine.style.display = 'block';
+        } else {
+            label.textContent = 'Communication Score';
+            csLine.style.display = 'none';
+        }
+
+        setTimeout(() => {
+            const bar = document.getElementById('videoScoreBar');
+            bar.style.background = color;
+            bar.style.width = headline + '%';
+        }, 100);
+
+        const grid = document.getElementById('videoCoachingGrid');
+        let html = '';
+
+        if (coaching.detailed_analysis) {
+            html += `<div class="coaching-block">
+                <div class="coaching-block-title"><i class="fas fa-magnifying-glass me-1" style="color:var(--primary);"></i>Detailed Analysis</div>
+                <p class="mb-0" style="font-size:0.84rem; line-height:1.5;">${coaching.detailed_analysis}</p>
+            </div>`;
+        }
+
+        if (coaching.strengths?.length) {
+            html += `<div class="coaching-block">
+                <div class="coaching-block-title"><i class="fas fa-check-circle me-1" style="color:var(--success);"></i>What you did well</div>`;
+            coaching.strengths.forEach(s => {
+                html += `<div class="coaching-item"><div class="ci-dot ci-s"><i class="fas fa-check"></i></div><span>${s}</span></div>`;
+            });
+            html += '</div>';
+        }
+
+        if (coaching.improvements?.length) {
+            html += `<div class="coaching-block">
+                <div class="coaching-block-title"><i class="fas fa-arrow-trend-up me-1" style="color:var(--warning);"></i>Areas to improve</div>`;
+            coaching.improvements.forEach(i => {
+                html += `<div class="coaching-item"><div class="ci-dot ci-i"><i class="fas fa-triangle-exclamation"></i></div><span>${i}</span></div>`;
+            });
+            html += '</div>';
+        }
+
+        if (coaching.tips?.length) {
+            html += `<div class="coaching-block">
+                <div class="coaching-block-title"><i class="fas fa-lightbulb me-1" style="color:var(--primary);"></i>Tips for next time</div>`;
+            coaching.tips.forEach(t => {
+                html += `<div class="coaching-item"><div class="ci-dot ci-t"><i class="fas fa-lightbulb"></i></div><span>${t}</span></div>`;
+            });
+            html += '</div>';
+        }
+
+        grid.innerHTML = html || '<p class="text-muted small text-center">Great effort!</p>';
+    }
+
+    // ── Saved Video Scans - same localStorage-backed pattern as the resume
+    // match history, just its own key since the two aren't related.
+    const VIDEO_HISTORY_KEY = 'videoAnalysisNotes';
+    const VIDEO_HISTORY_MAX = 20;
+
+    function loadVideoHistory() {
+        const list = document.getElementById('video-history-list');
+        const empty = document.getElementById('video-empty-history');
+        if (!list) return;
+
+        list.innerHTML = '';
+        const history = JSON.parse(localStorage.getItem(VIDEO_HISTORY_KEY)) || [];
+
+        if (history.length === 0) {
+            if (empty) empty.style.display = 'block';
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        history.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'compact-history-item';
+            div.innerHTML = `
+                <div class="chi-top">
+                    <span class="fw-semibold small">Video Scan</span>
+                    <span class="badge bg-primary">${item.score}%</span>
+                </div>
+                <div class="chi-bottom">
+                    <span class="chi-time">${item.time}</span>
+                    <div>
+                        <button class="btn btn-outline-primary view-btn">View</button>
+                        <button class="btn btn-outline-danger delete-btn">Delete</button>
+                    </div>
+                </div>

@@ -15,7 +15,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const signatureInput = document.getElementById("signatureName");
 
     const emailInput = document.getElementById("email");
-    const nextParam = {{ next|tojson if next else 'null' }};
+    // const nextParam = {{ next|tojson if next else 'null' }};
+    const nextElement = document.querySelector('input[name="next"]');
+    const nextParam = nextElement ? (nextElement.value || null) : null;
     function toggle() {
         const isEmployer = employerRadio.checked;
         companyGroup.style.display = isEmployer ? "block" : "none";
@@ -40,78 +42,47 @@ document.addEventListener("DOMContentLoaded", () => {
     employerRadio.addEventListener("change", toggle);
     candidateRadio.addEventListener("change", toggle);
     toggle();
+
+//---------------------------------------------------------------------------------------------------------------------
+    function setupPasswordToggle(inputId, buttonId) {
+        const input = document.getElementById(inputId);
+        const button = document.getElementById(buttonId);
+        const icon = button.querySelector("i");
+
+        button.addEventListener("click", () => {
+            const showing = input.type === "password";
+            input.type = showing ? "text" : "password";
+            button.setAttribute("aria-label", showing ? "Hide password" : "Show password");
+            button.setAttribute("aria-pressed", String(showing));
+            icon.classList.toggle("fa-eye", !showing);
+            icon.classList.toggle("fa-eye-slash", showing);
+        });
+    }
+
+    setupPasswordToggle("password1", "togglePassword1");
+    setupPasswordToggle("password2", "togglePassword2");
+
+    const password1Input = document.getElementById("password1");
+    const password2Input = document.getElementById("password2");
+    const passwordMatchStatus = document.getElementById("passwordMatchStatus");
+
+    function updatePasswordMatch() {
+        if (!password2Input.value) {
+            passwordMatchStatus.textContent = "";
+        } else if (password1Input.value === password2Input.value) {
+            passwordMatchStatus.textContent = "Passwords match.";
+        } else {
+            passwordMatchStatus.textContent = "Passwords do not match.";
+        }
+    }
+
+    password1Input.addEventListener("input", updatePasswordMatch);
+    password2Input.addEventListener("input", updatePasswordMatch);
+
+//---------------------------------------------------------------------------------------------------------------------
 });
 </script>
-<style>
-    .auth-wrap {
-        min-height: calc(100vh - 140px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 40px 16px;
-    }
-    .auth-card {
-        width: 100%;
-        max-width: 460px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 14px;
-        padding: 40px 36px;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.07);
-    }
-    .auth-logo { height: 32px; margin-bottom: 28px; }
-    .auth-title { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 6px; }
-    .auth-sub { font-size: 0.88rem; color: var(--text-muted); margin-bottom: 28px; }
-    .role-toggle { display: flex; gap: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 20px; }
-    .role-toggle input[type="radio"] { display: none; }
-    .role-toggle label {
-        flex: 1;
-        text-align: center;
-        padding: 10px 14px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        cursor: pointer;
-        color: var(--text-muted);
-        background: var(--surface);
-        transition: all 0.12s;
-        border-right: 1px solid var(--border);
-        margin: 0;
-        user-select: none;
-    }
-    .role-toggle label:last-of-type { border-right: none; }
-    .role-toggle input:checked + label {
-        background: var(--primary);
-        color: #fff;
-        border-color: var(--primary);
-    }
-    .divider-line {
-        display: flex; align-items: center; gap: 12px;
-        color: var(--text-muted); font-size: 0.78rem; font-weight: 500;
-        margin: 20px 0;
-    }
-    .divider-line:before, .divider-line:after { content: ''; flex: 1; height: 1px; background: var(--border); }
-    .google-btn {
-        display: flex; align-items: center; justify-content: center; gap: 10px;
-        width: 100%; padding: 11px 16px;
-        border: 1px solid var(--border); border-radius: 8px;
-        background: var(--surface); color: var(--text);
-        font-size: 0.9rem; font-weight: 600;
-        cursor: pointer; text-decoration: none;
-        transition: background 0.12s, border-color 0.12s;
-    }
-    .google-btn:hover { background: var(--bg); border-color: #94a3b8; color: var(--text); }
-    .employer-fee-block {
-        background: #fff7ed;
-        border: 1px solid #fed7aa;
-        border-radius: 8px;
-        padding: 12px 14px;
-        font-size: 0.78rem;
-        color: #92400e;
-        margin-bottom: 16px;
-        display: flex; align-items: flex-start; gap: 8px;
-    }
-    .employer-fee-block i { flex-shrink: 0; margin-top: 2px; }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sign_up.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -131,10 +102,26 @@ document.addEventListener("DOMContentLoaded", () => {
                 <label for="roleEmployer"><i class="fas fa-briefcase me-1"></i> I'm hiring</label>
             </div>
 
-            <div class="mb-3">
+<!-- =============================================================================================================================================================================-->
+
+            <!-- <div class="mb-3">
                 <label for="firstName" class="form-label fw-semibold" style="font-size:0.85rem;">First name</label>
                 <input type="text" class="form-control" id="firstName" name="firstName" placeholder="Your first name" required autocomplete="given-name">
+            </div> -->
+            
+<!-- =============================================================================================================================================================================-->
+            <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                    <label for="firstName" class="form-label fw-semibold" style="font-size:0.85rem;">First name</label>
+                    <input type="text" class="form-control" id="firstName" name="firstName" placeholder="Your first name" required autocomplete="given-name">
+                </div>
+                <div class="col-md-6">
+                    <label for="lastName" class="form-label fw-semibold" style="font-size:0.85rem;">Last name</label>
+                    <input type="text" class="form-control" id="lastName" name="lastName" placeholder="Your last name" required autocomplete="family-name">
+                </div>
             </div>
+<!-- =============================================================================================================================================================================-->
+
 
             <div class="mb-3">
                 <label for="email" class="form-label fw-semibold" style="font-size:0.85rem;">Email address</label>
@@ -147,7 +134,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="form-text">Use your company email. Personal providers like Gmail are not accepted.</div>
             </div>
 
-            <div class="mb-3">
+<!-- =============================================================================================================================================================================-->
+           
+            <!-- <div class="mb-3">
                 <label for="password1" class="form-label fw-semibold" style="font-size:0.85rem;">Password</label>
                 <input type="password" class="form-control" id="password1" name="password1" placeholder="Create a password (7+ chars)" required autocomplete="new-password">
             </div>
@@ -155,7 +144,37 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="mb-4">
                 <label for="password2" class="form-label fw-semibold" style="font-size:0.85rem;">Confirm password</label>
                 <input type="password" class="form-control" id="password2" name="password2" placeholder="Repeat your password" required autocomplete="new-password">
+            </div> -->
+
+<!-- =============================================================================================================================================================================-->
+
+            <div class="mb-3">
+                <label for="password1" class="form-label fw-semibold" style="font-size:0.85rem;">Password</label>
+                <div class="input-group">
+                    <input type="password" class="form-control" id="password1" name="password1"
+                           placeholder="Create a password (7+ chars)" required autocomplete="new-password">
+                    <button class="btn btn-outline-secondary" type="button" id="togglePassword1"
+                            aria-label="Show password" aria-pressed="false">
+                        <i class="fas fa-eye" aria-hidden="true"></i>
+                    </button>
+                </div>
             </div>
+
+            <div class="mb-4">
+                <label for="password2" class="form-label fw-semibold" style="font-size:0.85rem;">Confirm password</label>
+                <div class="input-group">
+                    <input type="password" class="form-control" id="password2" name="password2"
+                           placeholder="Repeat your password" required autocomplete="new-password">
+                    <button class="btn btn-outline-secondary" type="button" id="togglePassword2"
+                            aria-label="Show password" aria-pressed="false">
+                        <i class="fas fa-eye" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div id="passwordMatchStatus" class="form-text" aria-live="polite"></div>
+            </div>
+
+<!-- =============================================================================================================================================================================-->
+
 
             <!-- Employer: platform agreement (shown only for employer accounts) -->
             <div id="employerFeeBlock" style="display:none;" class="mb-3">

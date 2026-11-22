@@ -1,0 +1,328 @@
+.upload-area {
+        border: 2px dashed #ccc;
+        border-radius: 12px;
+        padding: 40px 20px;
+        text-align: center;
+        cursor: pointer;
+        background-color: #f8f9fa;
+        transition: all 0.3s ease;
+        margin: 20px 0;
+    }
+    
+    .upload-area:hover, .upload-area.dragover {
+        background-color: #e9f7fe;
+        border-color: var(--primary);
+    }
+
+    .upload-area.has-file {
+        border-style: solid;
+        border-color: var(--success, #198754);
+        background-color: #eafaf1;
+    }
+    
+    .score-circle {
+        width: 100px;
+        height: 100px;
+        margin: 8px auto;
+    }
+    
+    .circular-chart {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+    
+    .circle-bg {
+    fill: none;
+    stroke: #eee;
+    stroke-width: 3.8;
+}
+
+.circle {
+    fill: none;
+    stroke-width: 3.8;
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+    transition: stroke-dashoffset 1s ease-out, stroke 0.4s ease;
+}
+
+
+    
+    .percentage {
+        fill: var(--dark);
+        font-size: 0.4em;
+        text-anchor: middle;
+        dominant-baseline: middle;
+        font-weight: bold;
+    }
+    
+    .result-box {
+        min-height: 120px;
+        max-height: 220px;
+        overflow-y: auto;
+        padding: 15px;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+    }
+    
+    .spinner-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(255, 255, 255, 0.8);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        z-index: 10;
+    }
+    
+    .spinner {
+        width: 3rem;
+        height: 3rem;
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        border-left-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 15px;
+    }
+
+    /* Left "Upload & Analyze" form fades out underneath the loading overlay
+       while a match is being generated, so it reads as disabled/busy. */
+    .form-fading {
+        opacity: 0.25;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+    }
+    
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+    
+    .file-name {
+        display: inline-block;
+        max-width: 200px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: middle;
+        margin-left: 10px;
+        font-style: italic;
+    }
+
+    .file-name.has-file {
+        font-style: normal;
+        font-weight: 600;
+        color: var(--success, #198754);
+        max-width: none;
+    }
+    
+    .error-message {
+        display: none;
+        background-color: #ffe0e0;
+        color: #a94442;
+        padding: 12px 20px;
+        border: 1px solid #f5c6cb;
+        border-radius: 8px;
+        font-weight: bold;
+        font-family: Arial, sans-serif;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    
+    .fade-out {
+        opacity: 0;
+        transition: opacity 1s ease;
+    }
+    #history-list .history-item {
+    border: 1px solid #eee;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#history-list .history-item:hover {
+    background: #f4f8ff;
+}
+
+.history-score {
+    font-weight: bold;
+    color: var(--primary);
+}
+
+/* ── Chat Section ─────────────────────────────── */
+.chat-messages {
+    flex: 1;
+    min-height: 220px;
+    overflow-y: auto;
+    padding: 14px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+}
+
+.chat-message {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.chat-message.user-msg {
+    flex-direction: row-reverse;
+}
+
+.chat-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+.chat-avatar.ai { background: linear-gradient(to right, var(--primary), var(--secondary)); color: white; }
+.chat-avatar.user { background: #dee2e6; color: var(--dark); }
+
+.chat-bubble {
+    max-width: 74%;
+    font-size: 0.88rem;
+    line-height: 1.55;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.ai-bubble {
+    color: #2e3c57;
+}
+
+.user-bubble {
+    color: var(--primary);
+}
+
+.chat-job-links {
+    max-width: 74%;
+    margin-left: 38px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.chat-job-link {
+    display: block;
+    padding: 8px 12px;
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s;
+}
+
+.chat-job-link:hover {
+    border-color: var(--primary);
+}
+
+.chat-job-link .cjl-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.chat-job-link .cjl-meta {
+    font-size: 0.76rem;
+    color: #6c757d;
+}
+
+/* Typing dots */
+.typing-bubble {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 10px 14px;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 14px;
+    border-bottom-left-radius: 4px;
+}
+
+.dot {
+    width: 7px;
+    height: 7px;
+    background: #aab;
+    border-radius: 50%;
+    animation: blink 1.2s infinite;
+}
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes blink {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+    40%            { transform: translateY(-5px); opacity: 1; }
+}
+
+.chat-input-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.chat-input-row input {
+    flex: 1;
+}
+
+/* ── Video coaching report - same visual language as the practice interview hub ── */
+.coaching-wrap { padding: 20px 4px 4px; text-align: center; }
+.score-ring-lg {
+    width: 100px; height: 100px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 12px; font-size: 2.2rem; font-weight: 800;
+    border: 5px solid var(--border); transition: border-color 0.6s;
+}
+.score-ring-fill {
+    width: 100%; height: 8px; background: var(--border);
+    border-radius: 99px; overflow: hidden; margin: 8px 0 18px;
+}
+.score-ring-fill-bar { height: 100%; border-radius: 99px; width: 0; transition: width 0.8s ease; }
+.coaching-grid { display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.coaching-block {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px;
+}
+.coaching-block-title {
+    font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 10px;
+}
+.coaching-item {
+    display: flex; gap: 9px; margin-bottom: 8px;
+    align-items: flex-start; font-size: 0.84rem;
+}
+.coaching-item:last-child { margin-bottom: 0; }
+.ci-dot {
+    width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 0.58rem; margin-top: 1px;
+}
+.ci-s { background: var(--success-soft); color: var(--success); }
+.ci-i { background: var(--warning-soft); color: var(--warning); }
+.ci-t { background: var(--primary-soft); color: var(--primary); }
+
+/* ── Compact saved-item row, shared by both saved-results lists ── */
+.compact-history-item { border: 1px solid #eee; border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
+.compact-history-item .chi-top { display: flex; justify-content: space-between; align-items: center; }
+.compact-history-item .chi-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.compact-history-item .chi-time { font-size: 11px; color: #666; }
+.compact-history-item .btn { padding: 1px 8px; font-size: 0.72rem; }

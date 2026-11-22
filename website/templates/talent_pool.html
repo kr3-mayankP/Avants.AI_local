@@ -2,54 +2,7 @@
 {% block title %}Talent Pool - {{ company.name }}{% endblock %}
 
 {% block head %}
-<style>
-    .pool-tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:24px; }
-    .pool-tab {
-        padding:10px 20px; font-size:0.875rem; font-weight:600; color:var(--text-muted);
-        border:none; background:none; border-bottom:2px solid transparent;
-        cursor:pointer; margin-bottom:-1px; transition:color .12s, border-color .12s;
-    }
-    .pool-tab.active { color:var(--primary); border-bottom-color:var(--primary); }
-    .pool-tab:hover { color:var(--text); }
-
-    .candidate-card {
-        background:var(--surface); border:1px solid var(--border);
-        border-radius:var(--radius); padding:20px 24px;
-        display:flex; align-items:flex-start; gap:16px;
-        transition:border-color .15s, box-shadow .15s;
-        text-decoration:none; color:inherit;
-    }
-    .candidate-card:hover { border-color:var(--primary); box-shadow:0 2px 12px rgba(79,70,229,.08); color:inherit; }
-    .cand-avatar {
-        width:48px; height:48px; border-radius:50%; background:var(--primary);
-        display:flex; align-items:center; justify-content:center;
-        color:#fff; font-size:1.2rem; font-weight:700; flex-shrink:0;
-    }
-    .skill-tag {
-        display:inline-block; background:var(--primary-soft); color:var(--primary);
-        border-radius:999px; padding:2px 10px; font-size:0.73rem; font-weight:600; margin:2px;
-    }
-    .avail-badge {
-        display:inline-flex; align-items:center; gap:5px;
-        background:#d1fae5; color:#065f46;
-        border-radius:999px; padding:2px 10px; font-size:0.73rem; font-weight:600;
-    }
-    .match-pill {
-        flex-shrink:0; text-align:center; min-width:52px;
-    }
-    .score-circle {
-        width:48px; height:48px; border-radius:50%;
-        display:flex; align-items:center; justify-content:center;
-        font-size:0.9rem; font-weight:700; margin:0 auto 4px;
-    }
-    .empty-state { text-align:center; padding:60px 20px; color:var(--text-muted); }
-    .empty-state i { font-size:2.5rem; margin-bottom:12px; opacity:.3; }
-    .generate-error {
-        background: var(--danger-soft); color: var(--danger);
-        border-radius: var(--radius); padding: 10px 14px; font-size: 0.85rem;
-    }
-    .suggest-reason { font-size: 0.8rem; color: var(--text-muted); margin: 4px 0 0; }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/talent_pool.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -81,10 +34,12 @@
 {% set score = item.score %}
 {% set user = item.user %}
 <a href="{{ url_for('candidate.public_profile', user_id=user.id) }}" class="candidate-card mb-3 d-flex">
-    <div class="cand-avatar">{{ user.first_name[0]|upper if user.first_name else '?' }}</div>
+    {# #new change: render a safe initial when the first name is missing. #}
+    <div class="cand-avatar">{{ (user.first_name or user.last_name or '?')[0]|upper }}</div>
     <div class="flex-grow-1 min-width-0">
         <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
-            <span class="fw-bold" style="font-size:0.95rem;">{{ user.first_name }}</span>
+            {# #new change: display both name fields on candidate cards. #}
+            <span class="fw-bold" style="font-size:0.95rem;">{{ user.full_name or user.email }}</span>
             {% if prof.availability %}
                 <span class="avail-badge"><i class="fas fa-circle" style="font-size:0.4rem;"></i>{{ prof.availability }}</span>
             {% endif %}

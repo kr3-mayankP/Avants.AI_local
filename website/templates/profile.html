@@ -2,58 +2,7 @@
 {% block title %}My Profile{% endblock %}
 
 {% block head %}
-<style>
-    .profile-tabs {
-        border-bottom: 1px solid var(--border);
-        margin-bottom: 24px;
-        display: flex;
-        gap: 4px;
-    }
-    .profile-tab {
-        padding: 10px 18px;
-        font-size: 0.875rem;
-        font-weight: 600;
-        color: var(--text-muted);
-        border: none;
-        background: none;
-        border-bottom: 2px solid transparent;
-        cursor: pointer;
-        transition: color 0.12s, border-color 0.12s;
-        margin-bottom: -1px;
-    }
-    .profile-tab.active {
-        color: var(--primary);
-        border-bottom-color: var(--primary);
-    }
-    .profile-tab:hover { color: var(--text); }
-    .form-label { font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; }
-    .generate-error {
-        background: var(--danger-soft);
-        color: var(--danger);
-        border-radius: var(--radius);
-        padding: 10px 14px;
-        font-size: 0.85rem;
-        margin-top: 10px;
-    }
-    .suggest-item {
-        display: flex; align-items: flex-start; justify-content: space-between;
-        gap: 16px; padding: 16px 20px;
-        border-bottom: 1px solid var(--border);
-    }
-    .suggest-item:last-child { border-bottom: none; }
-    .suggest-item a { font-weight: 700; font-size: 0.9rem; text-decoration: none; color: var(--text); }
-    .suggest-item a:hover { color: var(--primary); }
-    .linkedin-tip {
-        background: var(--primary-soft);
-        border-radius: var(--radius);
-        padding: 12px 16px;
-        font-size: 0.82rem;
-        color: var(--primary);
-        margin-bottom: 16px;
-        display: flex; gap: 8px; align-items: flex-start;
-    }
-    .linkedin-tip i { flex-shrink: 0; margin-top: 2px; }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/profile.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -98,12 +47,26 @@
             <div class="card">
                 <div class="card-header"><i class="fas fa-user me-2"></i>Basics</div>
                 <div class="card-body p-4">
-                    <div class="mb-3">
+                    <!-- <div class="mb-3">
                         <label class="form-label">Full name</label>
                         <input type="text" class="form-control" id="fullName"
                                placeholder="e.g. Jordan Lee"
                                value="{{ current_user.first_name or '' }}">
+                    </div> -->
+<!--===========================================new change for first name and last name===========================================-->
+                    <div class="mb-3">
+                        <label for="firstName" class="form-label">First name</label>
+                        <input type="text" class="form-control" id="firstName"
+                               placeholder="Your first name"
+                               value="{{ current_user.first_name or '' }}">
                     </div>
+                    <div class="mb-3">
+                        <label for="lastName" class="form-label">Last name</label>
+                        <input type="text" class="form-control" id="lastName"
+                               placeholder="Your last name"
+                               value="{{ current_user.last_name or '' }}">
+                    </div>
+<!--===========================================new change end===================================================================-->
                     <div class="mb-3">
                         <label class="form-label">Headline</label>
                         <input type="text" class="form-control" id="headline"
@@ -348,7 +311,9 @@ document.getElementById("saveBtn").addEventListener("click", async () => {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                first_name:       document.getElementById("fullName").value,
+                //first_name:       document.getElementById("fullName").value,
+                first_name:       document.getElementById("firstName").value,     //new change for first name
+                last_name:        document.getElementById("lastName").value,      //new change for last name
                 headline:         document.getElementById("headline").value,
                 linkedin_url:     document.getElementById("linkedinUrl").value,
                 target_roles:     document.getElementById("targetRoles").value,

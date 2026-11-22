@@ -1,0 +1,278 @@
+            {% set cscore = composite_scores.get(app.id, app.match_score or 0) %}
+            {% set vs = verdict_score_map.get(app.interview_verdict) %}
+            {% set has_manual_score = app.manual_interview_score is not none %}
+            {% set has_manual_interview = has_manual_score or meetings.get(app.id) or app.meeting_rooms %}
+            {% set interview_weight = '30%' if (vs is not none and has_manual_score) else '45%' %}
+            <div class="detail-section">
+                <div class="detail-section-label">Overall Score Breakdown</div>
+                <div class="score-breakdown-grid">
+                    <!-- Resume -->
+                    {% set rs = app.match_score or 0 %}
+                    {% set rs_color = '#10b981' if rs >= 70 else ('#f59e0b' if rs >= 40 else '#ef4444') %}
+                    <div class="score-breakdown-item">
+                        <div style="width:56px;height:56px;margin:0 auto 6px;">
+                            <svg viewBox="0 0 36 36" style="display:block;width:100%;height:100%;">
+                                <path fill="none" stroke="#e5e7eb" stroke-width="3.8" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                <path class="ai-circle-fill" fill="none" stroke="{{ rs_color }}" stroke-width="3.8" stroke-linecap="round"
+                                      style="transform:rotate(-90deg);transform-origin:50% 50%;" data-score="{{ rs }}"
+                                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                <text x="18" y="18" fill="{{ rs_color }}" font-size="0.45em" text-anchor="middle" dominant-baseline="middle" font-weight="bold">{{ rs }}</text>
+                            </svg>
+                        </div>
+                        <div style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">Resume</div>
+                        <div style="font-size:0.65rem;color:var(--text-muted);">{{ interview_weight }}</div>
+                    </div>
+                    <!-- Interview -->
+                    {% if vs is not none %}
+                        {% set vs_color = '#10b981' if vs >= 70 else ('#f59e0b' if vs >= 40 else '#ef4444') %}
+                        <div class="score-breakdown-item">
+                            <div style="width:56px;height:56px;margin:0 auto 6px;">
+                                <svg viewBox="0 0 36 36" style="display:block;width:100%;height:100%;">
+                                    <path fill="none" stroke="#e5e7eb" stroke-width="3.8" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                    <path class="ai-circle-fill" fill="none" stroke="{{ vs_color }}" stroke-width="3.8" stroke-linecap="round"
+                                          style="transform:rotate(-90deg);transform-origin:50% 50%;" data-score="{{ vs }}"
+                                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                    <text x="18" y="18" fill="{{ vs_color }}" font-size="0.45em" text-anchor="middle" dominant-baseline="middle" font-weight="bold">{{ vs }}</text>
+                                </svg>
+                            </div>
+                            <div style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">AI Interview</div>
+                            <div style="font-size:0.65rem;color:var(--text-muted);">{{ interview_weight }}</div>
+                        </div>
+                    {% else %}
+                        <div class="score-breakdown-item" style="opacity:0.45;">
+                            <div style="width:56px;height:56px;margin:0 auto 6px;">
+                                <svg viewBox="0 0 36 36" style="display:block;width:100%;height:100%;">
+                                    <path fill="none" stroke="#e5e7eb" stroke-width="3.8" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                    <text x="18" y="18" fill="#9ca3af" font-size="0.3em" text-anchor="middle" dominant-baseline="middle">-</text>
+                                </svg>
+                            </div>
+                            <div style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">AI Interview</div>
+                            <div style="font-size:0.65rem;color:var(--text-muted);">Pending</div>
+                        </div>
+                    {% endif %}
+                    <!-- Authenticity -->
+                    {% set ai_data_bd = ai_likelihoods.get(app.id) %}
+                    {% if ai_data_bd and ai_data_bd.score is defined %}
+                        {% set auth_score = 100 - ai_data_bd.score %}
+                        {% set auth_color = '#10b981' if auth_score >= 65 else ('#f59e0b' if auth_score >= 35 else '#ef4444') %}
+                        <div class="score-breakdown-item">
+                            <div style="width:56px;height:56px;margin:0 auto 6px;">
+                                <svg viewBox="0 0 36 36" style="display:block;width:100%;height:100%;">
+                                    <path fill="none" stroke="#e5e7eb" stroke-width="3.8" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                    <path class="ai-circle-fill" fill="none" stroke="{{ auth_color }}" stroke-width="3.8" stroke-linecap="round"
+                                          style="transform:rotate(-90deg);transform-origin:50% 50%;" data-score="{{ auth_score }}"
+                                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                    <text x="18" y="18" fill="{{ auth_color }}" font-size="0.45em" text-anchor="middle" dominant-baseline="middle" font-weight="bold">{{ auth_score }}</text>
+                                </svg>
+                            </div>
+                            <div style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">Authentic</div>
+                            <div style="font-size:0.65rem;color:var(--text-muted);">10%</div>
+                        </div>
+                    {% else %}
+                        <div class="score-breakdown-item" style="opacity:0.45;">
+                            <div style="width:56px;height:56px;margin:0 auto 6px;">
+                                <svg viewBox="0 0 36 36" style="display:block;width:100%;height:100%;">
+                                    <path fill="none" stroke="#e5e7eb" stroke-width="3.8" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                    <text x="18" y="18" fill="#9ca3af" font-size="0.3em" text-anchor="middle" dominant-baseline="middle">-</text>
+                                </svg>
+                            </div>
+                            <div style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">Authentic</div>
+                            <div style="font-size:0.65rem;color:var(--text-muted);">Pending</div>
+                        </div>
+                    {% endif %}
+                    <!-- Manual (live) interview - only shown once a meeting has actually been scheduled/created for this applicant -->
+                    {% if has_manual_interview %}
+                        {% if has_manual_score %}
+                            {% set ms = app.manual_interview_score %}
+                            {% set ms_color = '#10b981' if ms >= 70 else ('#f59e0b' if ms >= 40 else '#ef4444') %}
+                            <div class="score-breakdown-item">
+                                <div style="width:56px;height:56px;margin:0 auto 6px;">
+                                    <svg viewBox="0 0 36 36" style="display:block;width:100%;height:100%;">
+                                        <path fill="none" stroke="#e5e7eb" stroke-width="3.8" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                        <path class="ai-circle-fill" fill="none" stroke="{{ ms_color }}" stroke-width="3.8" stroke-linecap="round"
+                                              style="transform:rotate(-90deg);transform-origin:50% 50%;" data-score="{{ ms }}"
+                                              d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                        <text x="18" y="18" fill="{{ ms_color }}" font-size="0.45em" text-anchor="middle" dominant-baseline="middle" font-weight="bold">{{ ms }}</text>
+                                    </svg>
+                                </div>
+                                <div style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">Live Interview</div>
+                                <div style="font-size:0.65rem;color:var(--text-muted);">{{ interview_weight }}</div>
+                                <button type="button" class="btn btn-link btn-sm p-0" style="font-size:0.65rem;" onclick="editManualScore({{ app.id }}, event)">Edit</button>
+                            </div>
+                        {% else %}
+                            <div class="score-breakdown-item" id="manual-score-display-{{ app.id }}">
+                                <div style="width:56px;height:56px;margin:0 auto 6px;">
+                                    <svg viewBox="0 0 36 36" style="display:block;width:100%;height:100%;">
+                                        <path fill="none" stroke="#e5e7eb" stroke-width="3.8" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                        <text x="18" y="18" fill="#9ca3af" font-size="0.3em" text-anchor="middle" dominant-baseline="middle">-</text>
+                                    </svg>
+                                </div>
+                                <div style="font-size:0.72rem;font-weight:600;color:var(--text-muted);">Live Interview</div>
+                                <button type="button" class="btn btn-link btn-sm p-0" style="font-size:0.65rem;" onclick="editManualScore({{ app.id }}, event)">Add score</button>
+                            </div>
+                        {% endif %}
+                        <div class="score-breakdown-item" id="manual-score-edit-{{ app.id }}" style="display:none;">
+                            <input type="number" min="0" max="100" value="{{ app.manual_interview_score or '' }}"
+                                   id="manual-score-input-{{ app.id }}" class="form-control form-control-sm" style="width:64px;margin:0 auto 6px;text-align:center;">
+                            <button type="button" class="btn btn-primary btn-sm" style="font-size:0.65rem;padding:2px 8px;" onclick="saveManualScore({{ app.id }}, event)">Save</button>
+                        </div>
+                    {% endif %}
+                    <!-- Overall -->
+                    {% set oc = '#10b981' if cscore >= 70 else ('#f59e0b' if cscore >= 40 else '#ef4444') %}
+                    <div class="score-breakdown-item" style="border-left:1px solid var(--border); padding-left:12px; margin-left:4px;">
+                        <div style="width:56px;height:56px;margin:0 auto 6px;">
+                            <svg viewBox="0 0 36 36" style="display:block;width:100%;height:100%;">
+                                <path fill="none" stroke="#e5e7eb" stroke-width="3.8" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                <path class="ai-circle-fill" fill="none" stroke="{{ oc }}" stroke-width="3.8" stroke-linecap="round"
+                                      style="transform:rotate(-90deg);transform-origin:50% 50%;" data-score="{{ cscore }}"
+                                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                <text x="18" y="18" fill="{{ oc }}" font-size="0.45em" text-anchor="middle" dominant-baseline="middle" font-weight="bold">{{ cscore }}</text>
+                            </svg>
+                        </div>
+                        <div style="font-size:0.72rem;font-weight:700;color:var(--text);">Overall</div>
+                        <div style="font-size:0.65rem;color:var(--text-muted);">Composite</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Match analysis -->
+            {% if app.match_explanation %}
+            <div class="detail-section">
+                <div class="detail-section-label">Match Analysis</div>
+                <div class="transcript-box">{{ app.match_explanation }}</div>
+            </div>
+            {% endif %}
+
+            <!-- AI Detection -->
+            {% set ai_data = ai_likelihoods.get(app.id) %}
+            {% if ai_data and ai_data.score is defined %}
+            {% set ai_score = ai_data.score %}
+            {% set ai_color = '#10b981' if ai_score < 35 else ('#f59e0b' if ai_score < 65 else '#ef4444') %}
+            <div class="detail-section">
+                <div class="detail-section-label">AI Usage Detection</div>
+                <div class="d-flex align-items-center gap-4">
+                    <!-- Circle score -->
+                    <div class="text-center flex-shrink-0">
+                        <div style="width:80px; height:80px; margin:0 auto;">
+                            <svg viewBox="0 0 36 36" style="display:block; width:100%; height:100%;">
+                                <path fill="none" stroke="#e5e7eb" stroke-width="3.8"
+                                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                <path class="ai-circle-fill" fill="none" stroke="{{ ai_color }}" stroke-width="3.8"
+                                      stroke-linecap="round"
+                                      style="transform:rotate(-90deg); transform-origin:50% 50%;"
+                                      data-score="{{ ai_score }}"
+                                      d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                                <text x="18" y="17" fill="{{ ai_color }}" font-size="0.42em" text-anchor="middle" dominant-baseline="middle" font-weight="bold">{{ ai_score }}</text>
+                                <text x="18" y="23" fill="#9ca3af" font-size="0.22em" text-anchor="middle" dominant-baseline="middle">/100</text>
+                            </svg>
+                        </div>
+                        <div class="mt-1">
+                            {% if ai_score < 35 %}
+                                <span class="ai-badge-human"><i class="fas fa-user-check" style="font-size:0.6rem;"></i>{{ ai_data.label }}</span>
+                            {% elif ai_score < 65 %}
+                                <span class="ai-badge-unsure"><i class="fas fa-circle-question" style="font-size:0.6rem;"></i>{{ ai_data.label }}</span>
+                            {% else %}
+                                <span class="ai-badge-ai"><i class="fas fa-robot" style="font-size:0.6rem;"></i>{{ ai_data.label }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <!-- Reasons -->
+                    {% if ai_data.reasons %}
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-muted); margin-bottom:6px;">Why</div>
+                        {% for reason in ai_data.reasons %}
+                        <div class="d-flex align-items-start gap-2 mb-2">
+                            <i class="fas fa-{{ 'circle-check' if ai_score < 35 else ('triangle-exclamation' if ai_score < 65 else 'robot') }}"
+                               style="font-size:0.72rem; color:{{ ai_color }}; margin-top:3px; flex-shrink:0;"></i>
+                            <span style="font-size:0.82rem; color:var(--text-muted); line-height:1.5;">{{ reason }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <p class="text-muted mb-0 mt-3" style="font-size:0.72rem;">Automated signal only - use alongside the interview recording and transcript.</p>
+            </div>
+            {% endif %}
+
+            <!-- Interview -->
+            {% set log = audio_logs.get(app.id, []) %}
+            {% if log %}
+            <div class="detail-section">
+                <div class="detail-section-label">Interview Recording</div>
+                {% for turn in log %}
+                <div class="mb-3">
+                    {# #new change: show the full candidate name for candidate interview turns. #}
+                    <p class="small mb-1 fw-semibold">{{ 'AI Interviewer' if turn.role == 'assistant' else (app.candidate.full_name or 'Candidate') }}:</p>
+                    <p class="small text-muted mb-1">{{ turn.text }}</p>
+                    {% if turn.video_path and turn.has_video %}
+                        <video controls preload="none" style="width:100%; max-width:360px; border-radius:8px; background:#000;"
+                               src="{{ url_for('candidate.application_video', application_id=app.id, log_index=loop.index0) }}"></video>
+                    {% elif turn.video_path %}
+                        <audio controls style="width:100%; height:32px;" src="{{ url_for('candidate.application_video', application_id=app.id, log_index=loop.index0) }}"></audio>
+                    {% elif turn.audio_filename %}
+                        <audio controls style="width:100%; height:32px;" src="{{ url_for('candidate.application_audio', application_id=app.id, filename=turn.audio_filename) }}"></audio>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% elif app.interview_transcript %}
+            <div class="detail-section">
+                <div class="detail-section-label">Interview Transcript</div>
+                <div class="transcript-box">{{ app.interview_transcript }}</div>
+            </div>
+            {% endif %}
+
+        </div><!-- /pane-overview -->
+
+        <!-- ── RESUME & PROFILE TAB ── -->
+        <div id="pane-resume-{{ app.id }}" style="display:none;">
+            {% set profile = profiles.get(app.candidate_user_id) %}
+
+            <!-- Candidate profile info -->
+            <div class="detail-section">
+                <div class="detail-section-label">Candidate Profile</div>
+                <div class="d-flex flex-column gap-1" style="font-size:0.85rem;">
+                    <div><span class="text-muted" style="width:120px;display:inline-block;">Name</span>
+                        {% if blind_mode %}<em class="text-muted">Hidden (Blind Mode)</em>{% else %}{{ app.candidate.full_name or '-' }}{% endif %}</div>
+                    <div><span class="text-muted" style="width:120px;display:inline-block;">Email</span>
+                        {% if blind_mode %}<em class="text-muted">Hidden (Blind Mode)</em>{% else %}<a href="mailto:{{ app.candidate.email }}" class="text-decoration-none">{{ app.candidate.email }}</a>{% endif %}</div>
+                    {% if profile and profile.headline %}
+                    <div><span class="text-muted" style="width:120px;display:inline-block;">Headline</span>
+                        {{ profile.headline }}</div>
+                    {% endif %}
+                    {% if profile and profile.target_roles %}
+                    <div><span class="text-muted" style="width:120px;display:inline-block;">Target roles</span>
+                        {{ profile.target_roles }}</div>
+                    {% endif %}
+                    {% if profile and profile.linkedin_url %}
+                    <div><span class="text-muted" style="width:120px;display:inline-block;">LinkedIn</span>
+                        <a href="{{ profile.linkedin_url }}" target="_blank" rel="noopener" class="text-decoration-none text-primary">
+                            {{ profile.linkedin_url }}</a></div>
+                    {% endif %}
+                    <div><span class="text-muted" style="width:120px;display:inline-block;">Applied</span>
+                        {{ app.created_at.strftime('%B %d, %Y') if app.created_at else '-' }}</div>
+                </div>
+            </div>
+
+            <!-- Submitted resume -->
+            <div class="detail-section">
+                <div class="detail-section-label">Submitted Resume</div>
+                {% if app.resume_text %}
+                    <div class="resume-box">{{ app.resume_text }}</div>
+                {% else %}
+                    <p class="text-muted small">No resume text available.</p>
+                {% endif %}
+            </div>
+        </div><!-- /pane-resume -->
+
+        <!-- ── NOTES TAB ── -->
+        <div id="pane-notes-{{ app.id }}" style="display:none;">
+            <div class="detail-section">
+                <div class="detail-section-label">Private Notes <span style="font-weight:400;text-transform:none;letter-spacing:0;">(only visible to your team)</span></div>
+                <textarea id="notes-{{ app.id }}" class="form-control form-control-sm mb-2" rows="4"
+                    placeholder="Add notes: interview impressions, follow-up reminders, anything..."
+                    style="font-size:0.85rem; resize:vertical;">{{ app.employer_notes or '' }}</textarea>
+                <button class="btn btn-primary btn-sm" onclick="saveNotes({{ app.id }}, event)">
+                    <i class="fas fa-save me-1"></i> Save Note
+                </button>
+                <span id="notes-saved-{{ app.id }}" class="text-muted small ms-2" style="display:none;">Saved</span>

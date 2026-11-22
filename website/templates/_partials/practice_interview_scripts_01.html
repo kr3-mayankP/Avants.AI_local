@@ -1,0 +1,426 @@
+<script>
+const CHAT_URL = "{{ url_for('candidate.practice_interview_chat', job_id=job.id) }}";
+const PRACTICE_QUESTIONS_URL = "{{ url_for('candidate.practice_questions', job_id=job.id) }}";
+
+async function showSampleQuestions() {
+    const modalEl = document.getElementById('sampleQuestionsModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    const loading = document.getElementById('sampleQuestionsLoading');
+    const list = document.getElementById('sampleQuestionsList');
+    const errorEl = document.getElementById('sampleQuestionsError');
+
+    loading.classList.remove('d-none');
+    list.classList.add('d-none');
+    errorEl.classList.add('d-none');
+    list.innerHTML = '';
+    modal.show();
+
+    try {
+        const res = await fetch(PRACTICE_QUESTIONS_URL, { method: 'POST' });
+        const data = await res.json();
+        loading.classList.add('d-none');
+        if (!res.ok || data.error) {
+            errorEl.textContent = data.error || "Couldn't generate questions right now. Please try again.";
+            errorEl.classList.remove('d-none');
+            return;
+        }
+        (data.questions || []).forEach((q) => {
+            const li = document.createElement('li');
+            li.className = 'mb-2';
+            li.textContent = q;
+            list.appendChild(li);
+        });
+        list.classList.remove('d-none');
+    } catch (e) {
+        loading.classList.add('d-none');
+        errorEl.textContent = 'Connection error - please try again.';
+        errorEl.classList.remove('d-none');
+    }
+}
+const ESTIMATED_Q = 5;
+
+// ── State ──────────────────────────────────────────────────────────────────
+let history      = [];
+let state        = 'idle';   // idle | recording | stopping | processing | done
+let wrappingUp   = false;
+let inputMode    = 'voice';
+let mediaRecorder = null;
+let audioChunks  = [];
+let recordingMimeType = '';
+let timerInterval = null;
+let timerSecs    = 0;
+
+function extFromMimeType(type) {
+    if (type.includes('mp4')) return 'mp4';
+    if (type.includes('ogg')) return 'ogg';
+    return 'webm';
+}
+
+function describeMediaError(e, deviceLabel) {
+    switch (e.name) {
+        case 'NotAllowedError':
+        case 'SecurityError':
+            return `${deviceLabel} access was blocked. Check your browser's permission icon in the address bar, and also check your system's privacy settings - on Windows: Settings → Privacy & Security → Camera/Microphone; on Mac: System Settings → Privacy & Security → Camera/Microphone.`;
+        case 'NotFoundError':
+        case 'OverconstrainedError':
+            return `No working ${deviceLabel.toLowerCase()} was found on this device.`;
+        case 'NotReadableError':
+        case 'TrackStartError':
+            return `Your ${deviceLabel.toLowerCase()} is already in use by another app (on Windows, this can also happen with Windows Hello's camera lock).`;
+        default:
+            return `${deviceLabel} access failed (${e.name || 'unknown error'}).`;
+    }
+}
+let pendingBlob  = null;   // transcribed blob waiting for submit/re-record
+let questionNum  = 0;
+
+// ── DOM ────────────────────────────────────────────────────────────────────
+const avatar          = document.getElementById('avatar');
+const qLabel          = document.getElementById('qLabel');
+const questionText    = document.getElementById('questionText');
+const inputArea       = document.getElementById('inputArea');
+const recordBtn       = document.getElementById('recordBtn');
+const recordIcon      = document.getElementById('recordIcon');
+const recordStatus    = document.getElementById('recordStatus');
+const recordTimer     = document.getElementById('recordTimer');
+const answerPreview   = document.getElementById('answerPreview');
+const previewText     = document.getElementById('previewText');
+const processingOverlay = document.getElementById('processingOverlay');
+const processingMsg   = document.getElementById('processingMsg');
+const transcriptBody  = document.getElementById('transcriptBody');
+const progressBar     = document.getElementById('progressBar');
+const progressFraction = document.getElementById('progressFraction');
+const progressPct     = document.getElementById('progressPct');
+const textAnswer      = document.getElementById('textAnswer');
+const wordCount       = document.getElementById('wordCount');
+const qCounter        = document.getElementById('qCounter');
+
+// ── Mode switch ────────────────────────────────────────────────────────────
+function switchMode(mode) {
+    if (state === 'recording' || state === 'processing') return;
+    inputMode = mode;
+    document.getElementById('tabVoice').classList.toggle('active', mode === 'voice');
+    document.getElementById('tabText').classList.toggle('active', mode === 'text');
+    document.getElementById('voiceMode').style.display = mode === 'voice' ? '' : 'none';
+    document.getElementById('textMode').style.display  = mode === 'text'  ? '' : 'none';
+    answerPreview.style.display = 'none';
+}
+
+// ── Recording timer ────────────────────────────────────────────────────────
+function startTimer() {
+    timerSecs = 0;
+    recordTimer.style.display = 'block';
+    timerInterval = setInterval(() => {
+        timerSecs++;
+        const m = Math.floor(timerSecs / 60);
+        const s = String(timerSecs % 60).padStart(2, '0');
+        recordTimer.textContent = `${m}:${s}`;
+    }, 1000);
+}
+function stopTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    recordTimer.style.display = 'none';
+}
+
+// ── Mic setup ──────────────────────────────────────────────────────────────
+async function ensureRecorder() {
+    if (mediaRecorder) return true;
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Safari (desktop and iOS) doesn't support webm at all - fall back
+        // to mp4 explicitly instead of "" (browser default), so the actual
+        // recorded format is always known for the Blob type / upload below.
+        const candidates = ['audio/webm', 'audio/mp4'];
+        const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t)) || '';
+        recordingMimeType = mimeType || 'audio/webm';
+        mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+        mediaRecorder.addEventListener('dataavailable', e => audioChunks.push(e.data));
+        mediaRecorder.addEventListener('stop', onRecordStop);
+        return true;
+    } catch (e) {
+        recordStatus.textContent = describeMediaError(e, 'Microphone') + ' Or switch to Text mode.';
+        return false;
+    }
+}
+
+async function handleRecordClick() {
+    if (state === 'processing' || state === 'done') return;
+
+    if (state === 'recording') {
+        // Stop recording
+        state = 'stopping';
+        mediaRecorder.stop();
+        stopTimer();
+        recordBtn.disabled = true;
+        recordBtn.classList.remove('recording');
+        recordIcon.className = 'fas fa-microphone';
+        recordStatus.textContent = 'Transcribing…';
+        return;
+    }
+
+    // Start recording
+    if (!(await ensureRecorder())) return;
+    audioChunks = [];
+    pendingBlob = null;
+    answerPreview.style.display = 'none';
+    state = 'recording';
+    mediaRecorder.start();
+    startTimer();
+    recordBtn.classList.add('recording');
+    recordIcon.className = 'fas fa-stop';
+    recordStatus.textContent = 'Recording… tap to stop';
+}
+
+async function onRecordStop() {
+    if (state === 'done') {
+        audioChunks = [];
+        return;
+    }
+
+    const blob = new Blob(audioChunks, { type: recordingMimeType || 'audio/webm' });
+    audioChunks = [];
+    const blobFilename = `answer.${extFromMimeType(blob.type)}`;
+
+    // Wrap-up was triggered while recording - transcribe whatever was said
+    // so far and fold it straight into the wrap-up request, instead of
+    // throwing the recording away just because they stopped it via "End
+    // session early" rather than the normal record button.
+    if (wrappingUp) {
+        setProcessing('Generating coaching report…');
+        try {
+            const fd = new FormData();
+            fd.append('history', JSON.stringify(history));
+            fd.append('wrap_up', 'true');
+            if (blob.size > 0) fd.append('answer_audio', blob, blobFilename);
+            const res = await fetchWithRetry(CHAT_URL, { method: 'POST', body: fd });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed.');
+            if (data.transcribed_answer) {
+                addBubble('user', data.transcribed_answer);
+                history.push({ role: 'user', content: data.transcribed_answer });
+            }
+            history.push({ role: 'assistant', content: data.reply });
+            state = 'done';
+            if (data.coaching) showCoachingReport(data.coaching);
+        } catch (e) {
+            wrappingUp = false;
+            clearProcessing();
+            recordStatus.textContent = e.message;
+        }
+        return;
+    }
+
+    // Transcribe first, show preview
+    try {
+        setProcessing('Transcribing…');
+        const fd = new FormData();
+        fd.append('history', JSON.stringify(history));
+        fd.append('wrap_up', 'false');
+        fd.append('answer_audio', blob, blobFilename);
+        fd.append('transcribe_only', 'true');
+
+        const res = await fetchWithRetry(CHAT_URL, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed.');
+
+        // Store the full result for submit
+        pendingBlob = blob;
+        window._pendingResult = data;
+
+        clearProcessing();
+        previewText.textContent = data.transcribed_answer || '(no speech detected)';
+        answerPreview.style.display = 'block';
+        recordBtn.disabled = false;
+        state = 'idle';
+        recordStatus.textContent = 'Review your answer below';
+
+        // If already concluded (very short session), skip preview
+        if (data.concluded && data.coaching) {
+            answerPreview.style.display = 'none';
+            finalizeAnswer(data);
+        }
+    } catch (e) {
+        clearProcessing();
+        recordStatus.textContent = e.message;
+        recordBtn.disabled = false;
+        state = 'idle';
+    }
+}
+
+function reRecord() {
+    pendingBlob = null;
+    window._pendingResult = null;
+    answerPreview.style.display = 'none';
+    recordStatus.textContent = 'Tap to start recording';
+}
+
+function submitVoiceAnswer() {
+    if (!window._pendingResult) return;
+    answerPreview.style.display = 'none';
+    finalizeAnswer(window._pendingResult);
+    window._pendingResult = null;
+    pendingBlob = null;
+}
+
+// ── Text mode ──────────────────────────────────────────────────────────────
+textAnswer.addEventListener('input', () => {
+    const words = textAnswer.value.trim().split(/\s+/).filter(Boolean).length;
+    wordCount.textContent = `${words} word${words !== 1 ? 's' : ''}`;
+});
+
+async function submitTextAnswer() {
+    const text = textAnswer.value.trim();
+    if (!text) return;
+    setProcessing('Sending answer…');
+    try {
+        const fd = new FormData();
+        fd.append('history', JSON.stringify(history));
+        fd.append('wrap_up', 'false');
+        fd.append('text_answer', text);
+        const res = await fetchWithRetry(CHAT_URL, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed.');
+        textAnswer.value = '';
+        wordCount.textContent = '0 words';
+        clearProcessing();
+        finalizeAnswer(data);
+    } catch (e) {
+        clearProcessing();
+        recordStatus.textContent = e.message;
+    }
+}
+
+// ── Processing state ───────────────────────────────────────────────────────
+function setProcessing(msg) {
+    state = 'processing';
+    processingMsg.textContent = msg || 'Processing…';
+    processingOverlay.style.display = 'flex';
+    document.getElementById('voiceMode').style.display = 'none';
+    document.getElementById('textMode').style.display = 'none';
+    document.getElementById('wrapUpRow').style.display = 'none';
+}
+
+function clearProcessing() {
+    processingOverlay.style.display = 'none';
+    switchMode(inputMode);
+    document.getElementById('wrapUpRow').style.display = '';
+    state = 'idle';
+}
+
+// ── Answer finalization ────────────────────────────────────────────────────
+function finalizeAnswer(data) {
+    const userText = data.transcribed_answer || data.text_answer || '';
+    if (userText) addBubble('user', userText);
+    history.push({ role: 'user', content: userText });
+    history.push({ role: 'assistant', content: data.reply });
+
+    if (data.concluded && data.coaching) {
+        state = 'done';
+        showCoachingReport(data.coaching);
+    } else {
+        addBubble('ai', data.reply);
+        setQuestion(data.reply);
+    }
+}
+
+// ── Wrap up ────────────────────────────────────────────────────────────────
+async function wrapUp() {
+    if (wrappingUp || state === 'done') return;
+    wrappingUp = true;
+
+    // Stop any active recording - onRecordStop() (which checks wrappingUp)
+    // owns transcribing this answer and sending the wrap-up request, so
+    // don't also send one here and don't throw the recording away.
+    if (state === 'recording' && mediaRecorder) {
+        mediaRecorder.stop();
+        stopTimer();
+        isRecording = false;
+        recordBtn.classList.remove('recording');
+        recordIcon.className = 'fas fa-microphone';
+        return;
+    }
+
+    // An answer may already be sitting transcribed-but-unsubmitted in the
+    // preview (recorded, reviewed, not yet confirmed) - carry it into the
+    // wrap-up request instead of silently dropping it too.
+    const pendingText = window._pendingResult?.transcribed_answer || window._pendingResult?.text_answer || '';
+    answerPreview.style.display = 'none';
+    window._pendingResult = null;
+    pendingBlob = null;
+
+    setProcessing('Generating coaching report…');
+    try {
+        const fd = new FormData();
+        fd.append('history', JSON.stringify(history));
+        fd.append('wrap_up', 'true');
+        if (pendingText) fd.append('text_answer', pendingText);
+        const res = await fetchWithRetry(CHAT_URL, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed.');
+        if (pendingText) {
+            addBubble('user', pendingText);
+            history.push({ role: 'user', content: pendingText });
+        }
+        history.push({ role: 'assistant', content: data.reply });
+        state = 'done';
+        if (data.coaching) showCoachingReport(data.coaching);
+    } catch (e) {
+        wrappingUp = false;
+        clearProcessing();
+        recordStatus.textContent = e.message;
+    }
+}
+
+// ── UI helpers ─────────────────────────────────────────────────────────────
+function lockInput(msg) {
+    recordBtn.disabled = true;
+    recordStatus.textContent = msg || 'Wait for the question…';
+    const textBtn = document.querySelector('#textMode button');
+    if (textBtn) textBtn.disabled = true;
+    document.getElementById('wrapUpRow').style.pointerEvents = 'none';
+    document.getElementById('wrapUpRow').style.opacity = '0.4';
+}
+
+function unlockInput() {
+    if (state === 'processing' || state === 'done') return;
+    recordBtn.disabled = false;
+    recordStatus.textContent = 'Tap to start recording';
+    const textBtn = document.querySelector('#textMode button');
+    if (textBtn) textBtn.disabled = false;
+    document.getElementById('wrapUpRow').style.pointerEvents = '';
+    document.getElementById('wrapUpRow').style.opacity = '';
+}
+
+function setQuestion(text) {
+    questionNum++;
+    qLabel.textContent = `Question ${questionNum}`;
+    questionText.textContent = text;
+    questionText.style.color = '';
+    questionText.style.fontSize = '';
+
+    const pct = Math.min(Math.round(((questionNum - 1) / ESTIMATED_Q) * 100), 90);
+    progressBar.style.width = pct + '%';
+    progressFraction.textContent = `Q${questionNum} of ~${ESTIMATED_Q}`;
+    progressPct.textContent = pct + '%';
+
+    // Lock input while the question is "presenting" - unlock after 1.5s read time
+    lockInput('Read the question above, then answer…');
+    setTimeout(unlockInput, 1500);
+}
+
+function addBubble(role, text) {
+    const label = document.createElement('div');
+    label.className = 't-bubble-label';
+    label.textContent = role === 'ai' ? 'AI Interviewer' : 'You';
+
+    const bubble = document.createElement('div');
+    bubble.className = `t-bubble ${role}`;
+    bubble.appendChild(label);
+    bubble.appendChild(document.createTextNode(text));
+    transcriptBody.appendChild(bubble);
+
+    const wrap = document.getElementById('transcriptWrap');
+    wrap.style.display = 'block';
+    wrap.scrollTop = wrap.scrollHeight;
+}

@@ -2,36 +2,7 @@
 {% block title %}{{ task.title }}{% endblock %}
 
 {% block head %}
-<style>
-    .option-card {
-        border: 2px solid var(--border);
-        border-radius: var(--radius);
-        padding: 20px;
-        cursor: pointer;
-        transition: border-color 0.15s, background 0.15s;
-        height: 100%;
-    }
-    .option-card:hover { border-color: var(--primary); background: var(--primary-soft); }
-    input[type="radio"]:checked + .option-card {
-        border-color: var(--primary);
-        background: var(--primary-soft);
-    }
-    input[type="radio"] { display: none; }
-    .rating-btn {
-        width: 44px; height: 44px; border-radius: 50%;
-        border: 2px solid var(--border);
-        background: var(--surface);
-        font-weight: 700; font-size: 0.9rem;
-        cursor: pointer; transition: all 0.12s;
-    }
-    .rating-btn:hover, .rating-btn.selected { border-color: var(--primary); background: var(--primary); color: white; }
-    .pay-banner {
-        background: #ecfdf5; border: 1px solid #a7f3d0;
-        border-radius: var(--radius); padding: 12px 18px;
-        display: flex; align-items: center; gap: 10px;
-        font-size: 0.88rem; font-weight: 600; color: #059669;
-    }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/earn_task_detail.css') }}">
 {% endblock %}
 
 {% block content %}

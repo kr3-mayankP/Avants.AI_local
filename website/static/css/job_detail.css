@@ -1,0 +1,55 @@
+.jd-section-label {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+    }
+    .jd-section { margin-bottom: 28px; }
+    .jd-section p { white-space: pre-wrap; font-size: 0.93rem; line-height: 1.7; color: var(--text); margin: 0; }
+    .jd-meta-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 5px 14px;
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: var(--text-muted);
+    }
+    .jd-meta-pill i { color: var(--primary); font-size: 0.8rem; }
+    .jd-sidebar {
+        position: sticky;
+        top: 80px;
+    }
+    .jd-apply-card { border: 2px solid var(--primary); }
+    .company-badge {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px;
+        background: var(--bg);
+        border-radius: var(--radius);
+        margin-bottom: 16px;
+    }
+    .company-badge .company-icon {
+        width: 40px; height: 40px;
+        border-radius: 8px;
+        background: var(--primary);
+        display: flex; align-items: center; justify-content: center;
+        color: white; font-weight: 700; font-size: 1rem;
+        flex-shrink: 0;
+    }
+    .fee-notice {
+        font-size: 0.78rem;
+        color: var(--text-muted);
+        background: var(--primary-soft);
+        border-radius: var(--radius);
+        padding: 10px 14px;
+        margin-top: 12px;
+        line-height: 1.5;
+    }
+    .fee-notice i { color: var(--primary); }

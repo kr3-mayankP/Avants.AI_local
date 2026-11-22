@@ -2,15 +2,7 @@
 {% block title %}Admin - Payouts{% endblock %}
 
 {% block head %}
-<style>
-    .payout-status-chip {
-        font-size: 0.72rem; font-weight: 700; border-radius: 999px;
-        padding: 3px 10px; white-space: nowrap;
-    }
-    .status-ready    { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
-    .status-pending  { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
-    .status-missing  { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_payouts.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -61,7 +53,8 @@
         <div class="d-flex align-items-center gap-3 px-4 py-3 flex-wrap" style="border-bottom:1px solid var(--border);">
             <div class="flex-grow-1">
                 <div class="fw-semibold" style="font-size:0.9rem;">
-                    {{ user.first_name or '-' }}
+                    <!-- #new change: show the contractor's combined name in payout rows. -->
+                    {{ user.full_name or '-' }}
                     <span class="text-muted fw-normal">{{ user.email }}</span>
                 </div>
                 <div class="text-muted" style="font-size:0.78rem;">
@@ -93,7 +86,7 @@
             <!-- Pay button -->
             {% if contractor and contractor.payout_enabled %}
             <form method="POST" action="{{ url_for('admin_bp.pay_user', user_id=user.id) }}"
-                  data-confirm-title="Pay ${{ '%.2f'|format(pending_cents / 100) }} to {{ user.first_name or user.email }}?"
+                  data-confirm-title="Pay ${{ '%.2f'|format(pending_cents / 100) }} to {{ user.full_name or user.email }}?"
                   data-confirm-message="This will trigger an immediate Stripe transfer. This cannot be undone."
                   data-confirm-btn="Confirm payout">
                 <button class="btn btn-sm btn-success fw-bold">

@@ -1,0 +1,29 @@
+.meet-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px 20px;
+        margin-bottom: 10px;
+    }
+    .meet-card.upcoming { border-left: 4px solid #059669; }
+    .meet-card-header {
+        display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    }
+    .meet-avatar {
+        width: 40px; height: 40px; border-radius: 50%;
+        background: var(--primary-soft); color: var(--primary);
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 800; font-size: 1rem; flex-shrink: 0;
+    }
+    .meet-meta { font-size: 0.78rem; color: var(--text-muted); }
+    .rec-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 0; border-top: 1px solid var(--border);
+        flex-wrap: wrap;
+    }
+    .status-chip {
+        font-size: 0.72rem; font-weight: 700; border-radius: 999px;
+        padding: 3px 10px; white-space: nowrap;
+    }
+    .chip-upcoming { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+    .chip-past     { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }

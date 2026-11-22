@@ -3,92 +3,7 @@
 
 {% block head %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
-<style>
-    .settings-nav .settings-nav-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 14px;
-        border-radius: 8px;
-        font-size: 0.9rem;
-        font-weight: 500;
-        color: var(--text-muted);
-        text-decoration: none;
-        transition: background 0.15s, color 0.15s;
-    }
-    .settings-nav .settings-nav-item:hover,
-    .settings-nav .settings-nav-item.active {
-        background: var(--primary-soft);
-        color: var(--primary);
-    }
-    .settings-nav .settings-nav-item i { width: 16px; text-align: center; }
-    .section-label {
-        font-size: 0.7rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.07em;
-        color: var(--text-muted);
-        margin-bottom: 16px;
-    }
-    .company-logo-preview {
-        width: 64px;
-        height: 64px;
-        border-radius: 12px;
-        background: var(--primary);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #fff;
-        font-weight: 800;
-        font-size: 1.6rem;
-        flex-shrink: 0;
-        overflow: hidden;
-    }
-    .company-logo-preview img { width: 100%; height: 100%; object-fit: contain; background: #fff; padding: 8px; box-sizing: border-box; }
-    .logo-upload-zone {
-        border: 2px dashed var(--border);
-        border-radius: var(--radius);
-        padding: 20px;
-        text-align: center;
-        cursor: pointer;
-        transition: border-color 0.15s, background 0.15s;
-    }
-    .logo-upload-zone:hover { border-color: var(--primary); background: var(--primary-soft); }
-    .member-row {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        padding: 12px 0;
-        border-bottom: 1px solid var(--border);
-    }
-    .member-row:last-child { border-bottom: none; }
-    .member-avatar {
-        width: 38px;
-        height: 38px;
-        border-radius: 50%;
-        background: var(--bg);
-        border: 1px solid var(--border);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
-        font-size: 0.9rem;
-        color: var(--text-muted);
-        flex-shrink: 0;
-    }
-    .invite-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 10px 14px;
-        background: var(--warning-soft);
-        border: 1px solid #fcd34d;
-        border-radius: var(--radius);
-        margin-bottom: 8px;
-        font-size: 0.85rem;
-    }
-    .invite-row i { color: var(--warning); }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/company_settings.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -212,9 +127,14 @@
                         <div class="section-label">Your Account</div>
 
                         <div class="row g-3 mb-4">
-                            <div class="col-md-8">
-                                <label class="form-label fw-semibold">Your Name</label>
-                                <input type="text" name="your_name" class="form-control" value="{{ current_user.first_name or '' }}" placeholder="e.g. Jordan Lee">
+                            <!-- #new change: let employer account holders edit each stored name field separately. -->
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="yourFirstName">First name</label>
+                                <input type="text" id="yourFirstName" name="your_first_name" class="form-control" value="{{ current_user.first_name or '' }}" placeholder="First name">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="yourLastName">Last name</label>
+                                <input type="text" id="yourLastName" name="your_last_name" class="form-control" value="{{ current_user.last_name or '' }}" placeholder="Last name">
                             </div>
                         </div>
 
@@ -310,9 +230,10 @@
 
                     <!-- Owner row -->
                     <div class="member-row">
-                        <div class="member-avatar">{{ owner.first_name[0]|upper if owner and owner.first_name else (owner.email[0]|upper if owner else '?') }}</div>
+                        <!-- #new change: show owner initials/name safely from both name fields. -->
+                        <div class="member-avatar">{{ (owner.first_name or owner.last_name or owner.email or '?')[0]|upper if owner else '?' }}</div>
                         <div class="flex-grow-1">
-                            <div class="fw-semibold small">{{ owner.first_name or '' if owner else '' }} <span class="text-muted fw-normal">{{ owner.email if owner else 'Unknown' }}</span></div>
+                            <div class="fw-semibold small">{{ owner.full_name or '' if owner else '' }} <span class="text-muted fw-normal">{{ owner.email if owner else 'Unknown' }}</span></div>
                             <div class="text-muted" style="font-size:0.75rem;">Owner · Can manage all jobs and team members</div>
                         </div>
                         <span class="badge bg-primary bg-opacity-10 text-primary" style="font-size:0.7rem; font-weight:600; padding:4px 10px; border-radius:999px;">Owner</span>
@@ -320,9 +241,10 @@
 
                     {% for member in members %}
                     <div class="member-row">
-                        <div class="member-avatar">{{ member.user.first_name[0]|upper if member.user.first_name else member.user.email[0]|upper }}</div>
+                        <!-- #new change: show member initials/name safely from both name fields. -->
+                        <div class="member-avatar">{{ (member.user.first_name or member.user.last_name or member.user.email or '?')[0]|upper }}</div>
                         <div class="flex-grow-1">
-                            <div class="fw-semibold small">{{ member.user.first_name or '' }} <span class="text-muted fw-normal">{{ member.user.email }}</span></div>
+                            <div class="fw-semibold small">{{ member.user.full_name or '' }} <span class="text-muted fw-normal">{{ member.user.email }}</span></div>
                             <div class="text-muted" style="font-size:0.75rem;">Member · Joined {{ member.joined_at.strftime('%b %d, %Y') if member.joined_at else 'N/A' }}</div>
                         </div>
                         {% if is_owner %}

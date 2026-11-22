@@ -1,0 +1,426 @@
+<script>
+function toggleHireSalaryFields(appId, status) {
+    const el = document.getElementById(`hireSalaryFields-${appId}`);
+    if (el) el.style.setProperty('display', status === 'hired' ? 'flex' : 'none', 'important');
+}
+
+function toggleCard(appId, event) {
+    if (event.target.closest('form, button, select, input, textarea, a, .card-tab')) return;
+    const card = document.getElementById(`card-${appId}`);
+    card.classList.toggle('open');
+    if (card.classList.contains('open')) animateAiCircles(card);
+}
+
+function animateAiCircles(container) {
+    container.querySelectorAll('.ai-circle-fill').forEach(path => {
+        const score = parseInt(path.dataset.score) || 0;
+        const circumference = 2 * Math.PI * 15.9155;
+        path.style.strokeDasharray = circumference + ' ' + circumference;
+        path.style.strokeDashoffset = circumference;
+        requestAnimationFrame(() => {
+            path.style.transition = 'stroke-dashoffset 0.9s ease-out';
+            path.style.strokeDashoffset = circumference * (1 - score / 100);
+        });
+    });
+}
+
+const _msgLoaded = new Set();
+
+function switchAppTab(appId, tab, event) {
+    event.stopPropagation();
+    ['overview', 'resume', 'notes', 'messages'].forEach(t => {
+        document.getElementById(`pane-${t}-${appId}`).style.display = t === tab ? 'block' : 'none';
+        document.getElementById(`tab-${t}-${appId}`).classList.toggle('active', t === tab);
+    });
+    if (tab === 'messages' && !_msgLoaded.has(appId)) loadMsgs(appId);
+}
+
+async function loadMsgs(appId) {
+    const feed = document.getElementById(`msgFeed-${appId}`);
+    try {
+        const res = await fetch(`/employer/applications/${appId}/messages.json`);
+        const msgs = await res.json();
+        renderMsgs(appId, msgs);
+        _msgLoaded.add(appId);
+        // Clear badge
+        const tab = document.getElementById(`tab-messages-${appId}`);
+        const badge = tab && tab.querySelector('.badge');
+        if (badge) badge.remove();
+    } catch(e) {
+        feed.innerHTML = `<div class="text-danger small">Failed to load messages.</div>`;
+    }
+}
+
+function renderMsgs(appId, msgs) {
+    const feed = document.getElementById(`msgFeed-${appId}`);
+    if (!msgs.length) {
+        feed.innerHTML = `<div class="text-muted text-center py-3" style="font-size:0.82rem;">No messages yet. Start the conversation below.</div>`;
+        return;
+    }
+    feed.innerHTML = msgs.map(m => `
+        <div style="display:flex;justify-content:${m.is_mine ? 'flex-end' : 'flex-start'};margin-bottom:8px;">
+            <div style="max-width:72%;background:${m.is_mine ? 'var(--primary)' : 'var(--surface)'};
+                        color:${m.is_mine ? '#fff' : 'var(--text)'};
+                        border:1px solid ${m.is_mine ? 'var(--primary)' : 'var(--border)'};
+                        border-radius:12px;padding:8px 12px;font-size:0.85rem;">
+                <div>${escHtml(m.body)}</div>
+                <div style="font-size:0.68rem;opacity:0.65;margin-top:3px;text-align:right;">${escHtml(m.time)}</div>
+            </div>
+        </div>`).join('');
+    feed.scrollTop = feed.scrollHeight;
+}
+
+async function sendMsg(appId) {
+    const input = document.getElementById(`msgInput-${appId}`);
+    const body = input.value.trim();
+    if (!body) return;
+    input.value = '';
+    try {
+        const res = await fetch(`/employer/applications/${appId}/message`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({body}),
+        });
+        const msg = await res.json();
+        if (msg.error) { alert(msg.error); return; }
+        const feed = document.getElementById(`msgFeed-${appId}`);
+        const empty = feed.querySelector('.text-muted');
+        if (empty) empty.remove();
+        const el = document.createElement('div');
+        el.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:8px;';
+        el.innerHTML = `<div style="max-width:72%;background:var(--primary);color:#fff;border:1px solid var(--primary);border-radius:12px;padding:8px 12px;font-size:0.85rem;"><div>${escHtml(msg.body)}</div><div style="font-size:0.68rem;opacity:0.65;margin-top:3px;text-align:right;">${escHtml(msg.time)}</div></div>`;
+        feed.appendChild(el);
+        feed.scrollTop = feed.scrollHeight;
+    } catch(e) { alert('Failed to send.'); }
+}
+
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toggleSchedule(appId, type, event) {
+    event.stopPropagation();
+    const box = document.getElementById(`schedule-${appId}`);
+    const titleEl = document.getElementById(`scheduleTitle-${appId}`);
+    const labelEl = document.getElementById(`locationLabel-${appId}`);
+    const inputEl = document.getElementById(`locationInput-${appId}`);
+    document.getElementById(`meetingType-${appId}`).value = type;
+
+    if (type === 'virtual') {
+        titleEl.textContent = 'Schedule a video call';
+        labelEl.textContent = 'Meeting link';
+        inputEl.placeholder = 'https://zoom.us/j/...';
+    } else {
+        titleEl.textContent = 'Schedule in-person meeting';
+        labelEl.textContent = 'Address';
+        inputEl.placeholder = '123 Main St, City, State';
+    }
+
+    const isVisible = box.style.display !== 'none';
+    box.style.display = isVisible ? 'none' : 'block';
+    if (!isVisible) {
+        document.getElementById(`card-${appId}`).classList.add('open');
+    }
+}
+
+function togglePropose(appId, event) {
+    event.stopPropagation();
+    const box = document.getElementById(`propose-${appId}`);
+    ['schedule', 'inapp'].forEach(id => {
+        const el = document.getElementById(`${id}-${appId}`);
+        if (el) el.style.display = 'none';
+    });
+    const isVisible = box.style.display !== 'none';
+    box.style.display = isVisible ? 'none' : 'block';
+    if (!isVisible) document.getElementById(`card-${appId}`).classList.add('open');
+}
+
+function toggleInAppMeeting(appId, event) {
+    event.stopPropagation();
+    const box = document.getElementById(`inapp-${appId}`);
+    ['schedule', 'propose'].forEach(id => {
+        const el = document.getElementById(`${id}-${appId}`);
+        if (el) el.style.display = 'none';
+    });
+    const isVisible = box.style.display !== 'none';
+    box.style.display = isVisible ? 'none' : 'block';
+    if (!isVisible) {
+        document.getElementById(`card-${appId}`).classList.add('open');
+    }
+}
+
+function confirmAndReject(appId, actionUrl, candidateName, formData) {
+    // Rejection is a final decision the employer can't walk back later, so
+    // it needs a deliberate confirmation before it fires - same modal used
+    // for "Hired," driven manually here since this path isn't always a
+    // native form submit (the quick one-click Reject button has no form).
+    const modalEl = document.getElementById('confirmActionModal');
+    document.getElementById('confirmActionTitle').textContent = 'Reject this candidate?';
+    document.getElementById('confirmActionMessage').textContent =
+        `This marks ${candidateName} as rejected. This is final and can't be changed afterward. Continue?`;
+    const btn = document.getElementById('confirmActionBtn');
+    btn.textContent = 'Yes, reject';
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    btn.onclick = () => { modal.hide(); rejectApplication(appId, actionUrl, candidateName, formData); };
+    modal.show();
+}
+
+async function confirmReject(form) {
+    // "hired" now submits either via a live <select> (a fresh transition
+    // into Hired) or a locked hidden input (resubmitting to correct the
+    // compensation figure on an already-hired application) - both need to
+    // read from whichever is actually present.
+    const statusField = form.querySelector('[name="status"]');
+    const statusValue = statusField ? statusField.value : null;
+    const isLockedHired = statusField && statusField.type === 'hidden';
+
+    if (statusValue === 'hired') {
+        const card = form.closest('.pipeline-card');
+        const candidateName = card?.dataset?.name || 'this candidate';
+        const interviewPending = card && card.dataset.interviewPending === '1';
+
+        if (isLockedHired) {
+            // Correcting compensation on an already-final hire - lighter prompt,
+            // the hire decision itself isn't in question here.
+            form.dataset.confirmTitle = 'Update hire compensation?';
+            form.dataset.confirmMessage = `This updates the compensation figure on file for ${candidateName}'s hire, which the placement fee is based on. Continue?`;
+            form.dataset.confirmBtn = 'Yes, update';
+        } else {
+            // Marking someone hired kicks off the placement fee process, so it
+            // needs a deliberate second confirmation (via the shared modal in
+            // base.html) on top of picking "Hired" and clicking Update. This is
+            // also a final decision - it can't be reversed afterward.
+            form.dataset.confirmTitle = 'Mark as hired?';
+            form.dataset.confirmMessage = interviewPending
+                ? `${candidateName} hasn't completed the AI interview yet, so you'd be marking them hired without that data. This is a final decision and starts the placement fee process once they confirm. Continue?`
+                : `This marks ${candidateName} as hired - a final decision that can't be changed afterward - and starts the placement fee process once they confirm. Continue?`;
+            form.dataset.confirmBtn = 'Yes, mark as hired';
+        }
+        return true; // shared submit listener picks up data-confirm-title and shows the modal
+    }
+
+    // Any other status change must not reuse a stale confirm prompt left
+    // over from a previous "Hired" attempt that was cancelled.
+    delete form.dataset.confirmTitle;
+    delete form.dataset.confirmMessage;
+    delete form.dataset.confirmBtn;
+
+    if (statusValue === 'rejected') {
+        // Intercept: confirm first, then submit via AJAX to get a feedback draft
+        const evt = window.event;
+        if (evt) evt.preventDefault();
+
+        const appId = form.action.match(/\/(\d+)\/status/)?.[1];
+        const candidateName = form.closest('.pipeline-card')?.dataset?.name || 'this candidate';
+        confirmAndReject(appId, form.action, candidateName, new FormData(form));
+        return false;
+    }
+    return true;
+}
+
+async function rejectApplication(appId, actionUrl, candidateName, formData) {
+    const fd = formData || new FormData();
+    fd.set('status', 'rejected');
+
+    const resp = await fetch(actionUrl, {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+        alert(data.error || "Couldn't reject this application. Please refresh and try again.");
+        return;
+    }
+
+    // Update the card's badge immediately
+    const card = document.querySelector(`.pipeline-card[data-app-id="${appId}"]`);
+    if (card) {
+        card.dataset.status = 'rejected';
+        const badge = card.querySelector('.badge-status');
+        if (badge) { badge.className = 'badge-status rejected'; badge.textContent = 'Rejected'; }
+    }
+
+    // Show feedback modal
+    document.getElementById('feedbackAppId').value = data.application_id;
+    document.getElementById('feedbackCandidateName').textContent = data.candidate_name || candidateName;
+    document.getElementById('feedbackText').value = data.feedback_draft || '';
+    new bootstrap.Modal(document.getElementById('feedbackModal')).show();
+}
+
+function quickReject(appId, event) {
+    event.stopPropagation();
+    const card = document.querySelector(`.pipeline-card[data-app-id="${appId}"]`);
+    const candidateName = card?.dataset?.name || 'this candidate';
+    const actionUrl = `/employer/applications/${appId}/status`;
+    confirmAndReject(appId, actionUrl, candidateName);
+}
+
+async function quickAdvance(appId, event) {
+    event.stopPropagation();
+    const btn = event.currentTarget;
+    btn.disabled = true;
+
+    const fd = new FormData();
+    fd.set('status', 'interviewing');
+    await fetch(`/employer/applications/${appId}/status`, {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+
+    const card = document.querySelector(`.pipeline-card[data-app-id="${appId}"]`);
+    if (card) {
+        card.dataset.status = 'interviewing';
+        const badge = card.querySelector('.badge-status');
+        if (badge) { badge.className = 'badge-status interviewing'; badge.textContent = 'interviewing'; }
+    }
+    btn.remove();
+}
+
+async function sendFeedback(skip) {
+    const appId = document.getElementById('feedbackAppId').value;
+    const modal = bootstrap.Modal.getInstance(document.getElementById('feedbackModal'));
+    if (!skip) {
+        const text = document.getElementById('feedbackText').value.trim();
+        if (!text) return;
+        const btn = document.getElementById('sendFeedbackBtn');
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+        await fetch(`/employer/applications/${appId}/send-feedback`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ feedback: text }),
+        });
+        btn.textContent = 'Sent!';
+        setTimeout(() => { modal?.hide(); location.reload(); }, 700);
+    } else {
+        modal?.hide();
+        location.reload();
+    }
+}
+
+async function saveNotes(appId, event) {
+    event.stopPropagation();
+    const text = document.getElementById(`notes-${appId}`).value;
+    const savedEl = document.getElementById(`notes-saved-${appId}`);
+    await fetch(`/employer/applications/${appId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: text }),
+    });
+    savedEl.style.display = 'inline';
+    setTimeout(() => savedEl.style.display = 'none', 2000);
+}
+
+function editManualScore(appId, event) {
+    event.stopPropagation();
+    const displayEl = document.getElementById(`manual-score-display-${appId}`);
+    if (displayEl) displayEl.style.display = 'none';
+    document.getElementById(`manual-score-edit-${appId}`).style.display = '';
+    document.getElementById(`manual-score-input-${appId}`).focus();
+}
+
+async function saveManualScore(appId, event) {
+    event.stopPropagation();
+    const input = document.getElementById(`manual-score-input-${appId}`);
+    const score = parseInt(input.value, 10);
+    if (isNaN(score) || score < 0 || score > 100) {
+        alert('Enter a score from 0 to 100.');
+        return;
+    }
+    const res = await fetch(`/employer/applications/${appId}/manual-interview-score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ score }),
+    });
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Failed to save score.');
+        return;
+    }
+    // Reloads since the score affects the composite weighting/colors for
+    // multiple widgets at once - simpler and more correct than replicating
+    // that calculation in JS.
+    location.reload();
+}
+
+// ── Filter logic ───────────────────────────────────────────────
+let activeFilter = 'all';
+
+function setFilter(status) {
+    activeFilter = status;
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        const isActive = btn.dataset.filter === status;
+        btn.classList.toggle('btn-primary', isActive);
+        btn.classList.toggle('btn-outline-secondary', !isActive);
+    });
+    filterApplicants();
+}
+
+function filterApplicants() {
+    const query = (document.getElementById('nameSearch').value || '').toLowerCase();
+    let visible = 0;
+    document.querySelectorAll('.pipeline-card').forEach(card => {
+        const statusMatch = activeFilter === 'all' || card.dataset.status === activeFilter;
+        const nameMatch   = !query || (card.dataset.name || '').toLowerCase().includes(query);
+        const show = statusMatch && nameMatch;
+        card.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+    const total = document.querySelectorAll('.pipeline-card').length;
+    const countEl = document.getElementById('filterCount');
+    if (countEl) countEl.textContent = visible < total ? `${visible} of ${total} shown` : '';
+}
+
+// ── Bulk selection ─────────────────────────────────────────────
+const bulkSelected = new Set();
+
+function toggleBulkSelect(appId, checkbox) {
+    if (checkbox.checked) bulkSelected.add(appId);
+    else bulkSelected.delete(appId);
+    document.getElementById('bulkActionBar').style.display = bulkSelected.size > 0 ? 'flex' : 'none';
+    document.getElementById('bulkSelectedCount').textContent = bulkSelected.size;
+}
+
+function clearBulkSelection() {
+    bulkSelected.clear();
+    document.querySelectorAll('.bulk-select-check').forEach(cb => cb.checked = false);
+    document.getElementById('bulkActionBar').style.display = 'none';
+}
+
+async function bulkUpdateStatus(status) {
+    if (bulkSelected.size === 0) return;
+    const label = status === 'rejected' ? 'reject' : 'advance to Interviewing';
+    if (!confirm(`${label.charAt(0).toUpperCase() + label.slice(1)} ${bulkSelected.size} selected candidate(s)? This skips per-candidate feedback and confirmation.`)) return;
+
+    const ids = [...bulkSelected];
+    await Promise.all(ids.map(appId => {
+        const fd = new FormData();
+        fd.set('status', status);
+        return fetch(`/employer/applications/${appId}/status`, { method: 'POST', body: fd });
+    }));
+    location.reload();
+}
+
+// ── Score a Resume (external sourcing) ────────────────────────
+const scoreResumeUrl = "{{ url_for('employer.score_resume', job_id=job.id) }}";
+
+document.getElementById("scoreFileInput")?.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const status = document.getElementById("scoreResumeStatus");
+    status.textContent = "Reading file…";
+    try {
+        const fd = new FormData();
+        fd.append("resume", file);
+        const res = await fetch("/extract-resume-text", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to read file.");
+        document.getElementById("scoreResumeText").value = data.resume_text;
+        status.textContent = "File loaded - edit below if needed, then click Score.";
+    } catch (err) {
+        status.textContent = err.message;
+    }
+});

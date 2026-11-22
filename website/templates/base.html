@@ -1,3 +1,7 @@
+{# ----------------------------------------------------------------
+   CHANGE BLOCK: 2026-11-22
+   OLD IMPLEMENTATION - inactive snapshot from Git HEAD
+   ----------------------------------------------------------------
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -827,6 +831,587 @@
         }
         #siteHelpSend:disabled { opacity: 0.5; cursor: not-allowed; }
     </style>
+
+    <button id="siteHelpToggle" title="Help - how does Avants AI work?" aria-label="Open site help chat">
+        <i class="fas fa-comment-dots"></i>
+    </button>
+    <div id="siteHelpPanel">
+        <div id="siteHelpHeader">
+            <div>
+                <strong>Avants AI Guide</strong>
+                <span>Ask how anything on the site works</span>
+            </div>
+            <button id="siteHelpClose" aria-label="Close">&times;</button>
+        </div>
+        <div id="siteHelpMessages">
+            <div class="she-msg ai">
+                <div class="she-bubble">Hi! I can explain how Avants AI works - applying, interviewing, posting jobs, fees, whatever you're stuck on. What do you want to know?</div>
+            </div>
+            <div class="she-msg ai" id="siteHelpTyping">
+                <div class="she-bubble" style="display:flex; gap:4px; align-items:center;">
+                    <span class="she-dot"></span><span class="she-dot"></span><span class="she-dot"></span>
+                </div>
+            </div>
+        </div>
+        <div id="siteHelpInputRow">
+            <input type="text" id="siteHelpInput" placeholder="Ask a question…" autocomplete="off">
+            <button id="siteHelpSend" aria-label="Send"><i class="fas fa-paper-plane" style="font-size:0.8rem;"></i></button>
+        </div>
+    </div>
+
+    <script>
+    (function () {
+        const toggle   = document.getElementById('siteHelpToggle');
+        const panel    = document.getElementById('siteHelpPanel');
+        const closeBtn = document.getElementById('siteHelpClose');
+        const messages = document.getElementById('siteHelpMessages');
+        const typing   = document.getElementById('siteHelpTyping');
+        const input    = document.getElementById('siteHelpInput');
+        const sendBtn  = document.getElementById('siteHelpSend');
+        if (!toggle || !panel) return;
+
+        const history = [];
+        let opened = false;
+
+        function toggleIcon(open) {
+            toggle.innerHTML = open ? '<i class="fas fa-xmark"></i>' : '<i class="fas fa-comment-dots"></i>';
+        }
+
+        toggle.addEventListener('click', () => {
+            const open = !panel.classList.contains('open');
+            panel.classList.toggle('open', open);
+            toggleIcon(open);
+            if (open && !opened) { opened = true; input.focus(); }
+        });
+        closeBtn.addEventListener('click', () => { panel.classList.remove('open'); toggleIcon(false); });
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function appendMessage(role, text) {
+            const div = document.createElement('div');
+            div.className = 'she-msg ' + (role === 'ai' ? 'ai' : 'user');
+            div.innerHTML =
+                (role === 'ai' ? '' : '<div class="she-avatar"><i class="fas fa-user"></i></div>') +
+                '<div class="she-bubble">' + escapeHtml(text).replace(/\n/g, '<br>') + '</div>';
+            messages.insertBefore(div, typing);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function appendJobLinks(jobs) {
+            if (!jobs || !jobs.length) return;
+            const wrap = document.createElement('div');
+            wrap.className = 'she-job-links';
+            jobs.forEach(job => {
+                const a = document.createElement('a');
+                a.className = 'she-job-link';
+                a.href = job.url;
+                a.target = '_blank';
+                a.rel = 'noopener';
+                a.innerHTML =
+                    '<div class="sjl-title">' + escapeHtml(job.title) + '</div>' +
+                    '<div class="sjl-meta">' + escapeHtml(job.company) + (job.location ? ' &middot; ' + escapeHtml(job.location) : '') + '</div>';
+                wrap.appendChild(a);
+            });
+            messages.insertBefore(wrap, typing);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function setTyping(visible) {
+            typing.classList.toggle('show', visible);
+            if (visible) messages.scrollTop = messages.scrollHeight;
+        }
+
+        async function send() {
+            const text = input.value.trim();
+            if (!text) return;
+            input.value = '';
+            input.disabled = true;
+            sendBtn.disabled = true;
+
+            appendMessage('user', text);
+            history.push({ role: 'user', content: text });
+            setTyping(true);
+
+            try {
+                const resp = await fetch("{{ url_for('site_help_chat') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text, history: history.slice(-20) })
+                });
+                const data = await resp.json();
+                setTyping(false);
+                const reply = data.reply || "Sorry, something went wrong. Please try again.";
+                appendMessage('ai', reply);
+                appendJobLinks(data.matching_jobs);
+                history.push({ role: 'assistant', content: reply });
+            } catch (e) {
+                setTyping(false);
+                appendMessage('ai', "Connection error - please try again.");
+            }
+
+            input.disabled = false;
+            sendBtn.disabled = false;
+            input.focus();
+        }
+
+        sendBtn.addEventListener('click', send);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); send(); }
+        });
+    })();
+    </script>
+</body>
+</html>
+
+   ---------------------------------------------------------------- #}
+{# ----------------------------------------------------------------
+   NEW IMPLEMENTATION - active code starts below
+   ---------------------------------------------------------------- #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-GLFDS8ZT1H"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-GLFDS8ZT1H');
+    </script>
+
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>{% block title %}Dashboard{% endblock %} | Avants</title>
+
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='Avants.png') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+
+    
+
+    {% block head %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/site_help.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-xl fixed-top">
+        <div class="container-fluid px-4 px-lg-5">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('views.home') }}">
+                <img src="{{ url_for('static', filename='Avants.png') }}" alt="Avants" class="logo" />
+            </a>
+
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbar">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbar">
+                {% if current_user.is_authenticated %}
+                    {% if current_user.role == 'candidate' %}
+                    <form class="d-flex ms-3 me-3" method="GET" action="{{ url_for('candidate.browse_jobs') }}">
+                        <div class="input-group input-group-sm" style="width:220px;">
+                            <input type="text" name="q" class="form-control" style="border-radius:8px 0 0 8px;" placeholder="Search jobs…">
+                            <button class="btn btn-primary" type="submit" style="border-radius:0 8px 8px 0;">Search</button>
+                        </div>
+                    </form>
+                    {% endif %}
+                {% endif %}
+
+                <div class="navbar-nav ms-auto align-items-center gap-1">
+                    <div id="google_translate_element" class="me-1" title="Translate this page"></div>
+                    <a href="#" id="showOriginalLink" class="nav-link" style="display:none;" title="Revert to the original language">
+                        Show original
+                    </a>
+                    {% if current_user.is_authenticated %}
+                        {% if current_user.role == 'employer' %}
+                            <a class="nav-link" href="{{ url_for('employer.dashboard') }}">
+                                Dashboard
+                            </a>
+                            <div class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="recruitmentToolsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    Recruitment Tools
+                                </a>
+                                <ul class="dropdown-menu" aria-labelledby="recruitmentToolsDropdown">
+                                    <li><a class="dropdown-item" href="{{ url_for('employer.post_job') }}">Post Job</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('employer.analytics') }}">Analytics</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('employer.employer_meetings') }}">Meetings</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('employer.company_settings') }}">Company</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('resumemat') }}">Resume Job Match <span class="badge bg-secondary ms-1" style="font-size:0.55rem;">FREE</span></a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('resumesum') }}">Resume Summarizer <span class="badge bg-secondary ms-1" style="font-size:0.55rem;">FREE</span></a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('practice_interview_hub') }}">Practice Interview Hub <span class="badge bg-secondary ms-1" style="font-size:0.55rem;">FREE</span></a></li>
+                                </ul>
+                            </div>
+                        {% else %}
+                            <a class="nav-link" href="{{ url_for('candidate.browse_jobs') }}">
+                                Find Jobs
+                            </a>
+                            <div class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="resumeToolsDropdownAuth" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    Resume Tools <span class="badge bg-secondary" style="font-size:0.55rem; font-weight:600; letter-spacing:0.03em; vertical-align:middle;">COMMUNITY EDITION</span>
+                                </a>
+                                <ul class="dropdown-menu" aria-labelledby="resumeToolsDropdownAuth">
+                                    <li><a class="dropdown-item" href="{{ url_for('resumemat') }}">Resume Job Match</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('resumesum') }}">Resume Summarizer</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('practice_interview_hub') }}">Practice Interview Hub</a></li>
+                                </ul>
+                            </div>
+                            <a class="nav-link" href="{{ url_for('candidate.dashboard') }}">
+                                Applications
+                            </a>
+                            <a class="nav-link" href="{{ url_for('candidate.interviews') }}">
+                                Interviews
+                            </a>
+                            {% if unread_messages %}
+                            <a class="nav-link position-relative" href="{{ url_for('employer.dashboard') if current_user.role == 'employer' else url_for('candidate.dashboard') }}" title="{{ unread_messages }} unread message{{ 's' if unread_messages != 1 }}">
+                                Messages
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary" style="font-size:0.55rem;">{{ unread_messages }}</span>
+                            </a>
+                            {% endif %}
+                            <div class="nav-item dropdown" id="notifDropdownWrap" style="display:none;">
+                                <a class="nav-link position-relative" href="#" id="notifBell" data-bs-toggle="dropdown" aria-expanded="false">
+                                    Notifications
+                                    <span id="notifBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size:0.58rem; display:none;"></span>
+                                </a>
+                                <div class="dropdown-menu dropdown-menu-end p-0 shadow" style="width:340px; max-height:420px; overflow-y:auto; border-radius:var(--radius);" id="notifMenu">
+                                    <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+                                        <strong style="font-size:0.85rem;">Notifications</strong>
+                                        <div class="d-flex gap-2 align-items-center">
+                                            <button class="btn btn-link btn-sm p-0 text-muted" style="font-size:0.78rem;" id="markAllRead">Mark all read</button>
+                                            <div class="form-check form-switch mb-0 ms-1" title="Toggle email notifications">
+                                                <input class="form-check-input" type="checkbox" id="notifToggle" checked>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="notifList"><div class="text-muted px-3 py-3" style="font-size:0.83rem;">Loading…</div></div>
+                                </div>
+                            </div>
+                        {% endif %}
+                        <div class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="accountDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Account">
+                                Account
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="accountDropdown">
+                                {% if current_user.role != 'employer' %}
+                                <li><a class="dropdown-item" href="{{ url_for('candidate.profile') }}">Profile</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('faq') }}">Help & FAQ</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                {% endif %}
+                                {% if current_user.data_buyer_id %}
+                                <li><a class="dropdown-item" href="{{ url_for('data_market.dashboard') }}">Data dashboard</a></li>
+                                {% endif %}
+                                {% if current_user.is_admin %}
+                                <li><a class="dropdown-item" href="{{ url_for('admin_bp.companies') }}">Admin</a></li>
+                                {% endif %}
+                                <li><a class="dropdown-item" href="{{ url_for('views.public_site') }}">Visit public site</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Log out</a></li>
+                            </ul>
+                        </div>
+                    {% else %}
+                        <a class="nav-link" href="{{ url_for('candidate.browse_jobs') }}">Find Jobs</a>
+                        <div class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="resumeToolsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Free Resume Tools <span class="badge bg-secondary" style="font-size:0.55rem; font-weight:600; letter-spacing:0.03em; vertical-align:middle;">COMMUNITY EDITION</span>
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="resumeToolsDropdown">
+                                <li><a class="dropdown-item" href="{{ url_for('resumemat') }}">Resume Job Match</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('resumesum') }}">Resume Summarizer</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('practice_interview_hub') }}">Practice Interview Hub</a></li>
+                            </ul>
+                        </div>
+                        <a class="nav-link" href="{{ url_for('for_employers') }}">For Employers</a>
+                        <a class="nav-link" href="{{ url_for('faq') }}">How It Works</a>
+                        <a class="nav-link" href="{{ url_for('contact') }}">Contact</a>
+                        <a class="nav-link" href="{{ url_for('auth.login') }}">Log in</a>
+                        <a href="{{ url_for('auth.sign_up') }}" class="btn btn-primary btn-sm ms-1">Sign Up Free</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="main-container {% block container_class %}{% endblock %}">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show mb-3" role="alert">
+                        <i class="fas {{ 'fa-circle-exclamation' if category == 'error' else 'fa-circle-check' }} me-2"></i>
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <footer>
+        <div class="container">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div class="d-flex align-items-center gap-2">
+                    <img src="{{ url_for('static', filename='Avants.png') }}" alt="Avants" style="height:20px; opacity:0.6;">
+                    <span class="text-muted">&copy; 2026 Avants AI. All rights reserved.</span>
+                </div>
+                <div class="d-flex gap-4">
+                    <a href="{{ url_for('data_market.signup') }}">Data Access</a>
+                    <a href="{{ url_for('faq') }}">FAQ</a>
+                    <a href="{{ url_for('contact') }}">Contact</a>
+                    <a href="{{ url_for('terms') }}">Terms</a>
+                    <a href="{{ url_for('privacy') }}">Privacy</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Global destructive-action confirmation modal -->
+    <div class="modal fade" id="confirmActionModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:380px;">
+            <div class="modal-content" style="border-radius:var(--radius); border:1px solid var(--border);">
+                <div class="modal-body p-4 text-center">
+                    <div style="width:52px;height:52px;border-radius:50%;background:var(--danger-soft);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+                        <i class="fas fa-triangle-exclamation" style="color:var(--danger);font-size:1.2rem;"></i>
+                    </div>
+                    <h6 class="fw-bold mb-2" id="confirmActionTitle">Are you sure?</h6>
+                    <p class="text-muted small mb-4" id="confirmActionMessage">This action cannot be undone.</p>
+                    <div class="d-flex gap-2 justify-content-center">
+                        <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+                            <i class="fas fa-arrow-left me-1"></i> Go back
+                        </button>
+                        <button class="btn btn-danger btn-sm" id="confirmActionBtn">Confirm</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='index.js') }}"></script>
+
+    <script>
+        setTimeout(() => {
+            document.querySelectorAll('.alert').forEach(alert => {
+                alert.classList.remove('show');
+                setTimeout(() => alert.remove(), 200);
+            });
+        }, 4000);
+
+        // Reusable confirm modal - forms with data-confirm-title get intercepted
+        (function() {
+            const modal = new bootstrap.Modal(document.getElementById('confirmActionModal'));
+            document.addEventListener('submit', function(e) {
+                const form = e.target;
+                if (!form.dataset.confirmTitle) return;
+                e.preventDefault();
+                document.getElementById('confirmActionTitle').textContent = form.dataset.confirmTitle;
+                document.getElementById('confirmActionMessage').textContent = form.dataset.confirmMessage || 'This action cannot be undone.';
+                const btn = document.getElementById('confirmActionBtn');
+                btn.textContent = form.dataset.confirmBtn || 'Confirm';
+                btn.onclick = () => {
+                    modal.hide();
+                    delete form.dataset.confirmTitle;
+                    setFormLoading(form, form.querySelector('[type="submit"]'));
+                    form.submit();
+                };
+                modal.show();
+            });
+        })();
+
+        // General loading state for any plain form submit across the site -
+        // disables the clicked submit button and shows a spinner so people
+        // get feedback instead of wondering if their click did anything, and
+        // can't double-submit by clicking again while it's processing. Skips
+        // forms still waiting on the confirm modal above (data-confirm-title
+        // not yet cleared) and anything a page's own JS already intercepted
+        // with preventDefault (defaultPrevented stays false only when the
+        // browser is actually about to submit/navigate).
+        function setFormLoading(form, button) {
+            if (!button || button.dataset.loading) return;
+            button.dataset.loading = '1';
+            button.dataset.originalHtml = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> ' + (button.dataset.loadingText || 'Processing…');
+        }
+        document.addEventListener('submit', function(e) {
+            const form = e.target;
+            if (form.dataset.confirmTitle || e.defaultPrevented) return;
+            setFormLoading(form, e.submitter || form.querySelector('[type="submit"]'));
+        });
+
+        // Add CSRF protection to every ordinary form and fetch/JSON request.
+        (function() {
+            const token = document.querySelector('meta[name="csrf-token"]')?.content;
+            if (!token) return;
+            document.querySelectorAll('form').forEach(form => {
+                if (form.querySelector('input[name="csrf_token"]')) return;
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'csrf_token';
+                input.value = token;
+                form.appendChild(input);
+            });
+            const nativeFetch = window.fetch;
+            window.fetch = function(resource, options) {
+                options = options || {};
+                const method = (options.method || 'GET').toUpperCase();
+                if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+                    options.headers = new Headers(options.headers || {});
+                    options.headers.set('X-CSRF-Token', token);
+                    if (options.body && typeof options.body === 'object' &&
+                        !(options.body instanceof FormData) &&
+                        !(options.body instanceof URLSearchParams) &&
+                        typeof options.body === 'string') {
+                        try {
+                            const body = JSON.parse(options.body);
+                            body.csrf_token = token;
+                            options.body = JSON.stringify(body);
+                            options.headers.set('Content-Type', 'application/json');
+                        } catch (_) {}
+                    }
+                }
+                return nativeFetch.call(this, resource, options);
+            };
+        })();
+    </script>
+
+    {% block scripts %}{% endblock %}
+
+    {% if current_user.is_authenticated and current_user.role == 'candidate' %}
+    <script>
+    (function() {
+        const wrap   = document.getElementById("notifDropdownWrap");
+        const badge  = document.getElementById("notifBadge");
+        const list   = document.getElementById("notifList");
+        const toggle = document.getElementById("notifToggle");
+
+        async function loadNotifications() {
+            try {
+                const r = await fetch("{{ url_for('candidate.notifications') }}");
+                const data = await r.json();
+                toggle.checked = data.notifications_enabled;
+                wrap.style.display = "";
+                if (data.unread_count > 0) {
+                    badge.textContent = data.unread_count > 9 ? "9+" : data.unread_count;
+                    badge.style.display = "";
+                } else {
+                    badge.style.display = "none";
+                }
+                if (!data.notifications || data.notifications.length === 0) {
+                    list.innerHTML = '<div class="text-muted px-3 py-3" style="font-size:0.83rem;">No notifications yet.</div>';
+                    return;
+                }
+                list.innerHTML = data.notifications.map(n => `
+                    <a href="${n.link || '#'}" class="d-block px-3 py-2 border-bottom text-decoration-none ${n.read ? 'text-muted' : 'fw-semibold'}"
+                       style="font-size:0.82rem; background:${n.read ? '#fff' : '#eef2ff'}; transition:background 0.1s;">
+                        ${n.message}
+                        <div class="text-muted mt-1" style="font-size:0.7rem;">${n.created_at ? new Date(n.created_at).toLocaleString() : ''}</div>
+                    </a>
+                `).join("");
+            } catch (_) {}
+        }
+
+        document.getElementById("notifBell").addEventListener("click", async () => {
+            await loadNotifications();
+            await fetch("{{ url_for('candidate.mark_notifications_read') }}", { method: "POST" });
+            badge.style.display = "none";
+        });
+
+        document.getElementById("markAllRead").addEventListener("click", async (e) => {
+            e.preventDefault();
+            await fetch("{{ url_for('candidate.mark_notifications_read') }}", { method: "POST" });
+            badge.style.display = "none";
+            await loadNotifications();
+        });
+
+        toggle.addEventListener("change", async () => {
+            await fetch("{{ url_for('candidate.notification_preferences') }}", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled: toggle.checked })
+            });
+        });
+
+        loadNotifications();
+    })();
+    </script>
+    {% endif %}
+
+    <!-- Language switcher - machine-translates the page client-side -->
+    <script type="text/javascript">
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'en',
+                includedLanguages: 'es,fr,de,it,pt,zh-CN,zh-TW,ja,ko,hi,ar,ru,vi,tl,pl,nl,tr,th,id,uk',
+                layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+                autoDisplay: false
+            }, 'google_translate_element');
+        }
+
+        // Google's banner sometimes re-applies inline offsets to html/body via
+        // its own JS after translation happens, which can beat plain CSS. Keep
+        // stripping it for as long as the page is open, not just once on load.
+        (function () {
+            function stripGoogleBannerOffset() {
+                document.documentElement.style.top = '0px';
+                document.body.style.top = '0px';
+                document.documentElement.style.marginTop = '0px';
+                document.body.style.marginTop = '0px';
+                document.querySelectorAll('iframe.goog-te-banner-frame, .goog-te-banner-frame').forEach(function (el) {
+                    el.style.display = 'none';
+                    el.style.visibility = 'hidden';
+                    el.style.height = '0px';
+                });
+            }
+            stripGoogleBannerOffset();
+            // Scoped to just html/body's own style attribute and html's direct
+            // children (where Google inserts its banner iframe) - NOT a full
+            // subtree watch, which would fire on every unrelated DOM change
+            // on the page (dropdowns, chat messages, notification polling).
+            var observer = new MutationObserver(stripGoogleBannerOffset);
+            observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'], childList: true });
+            observer.observe(document.body, { attributes: true, attributeFilter: ['style'] });
+        })();
+
+        // Hiding Google's own banner also hides its "Show original"/X control,
+        // which was the only way to revert a translation - replace it with our
+        // own link that clears Google's translation cookie directly instead of
+        // depending on their (now-hidden) banner UI.
+        (function () {
+            var link = document.getElementById('showOriginalLink');
+            if (!link) return;
+
+            function isTranslated() {
+                return document.documentElement.classList.contains('translated-ltr') ||
+                       document.documentElement.classList.contains('translated-rtl');
+            }
+            function syncVisibility() {
+                link.style.display = isTranslated() ? 'inline-flex' : 'none';
+            }
+
+            syncVisibility();
+            new MutationObserver(syncVisibility).observe(document.documentElement, {
+                attributes: true, attributeFilter: ['class'],
+            });
+
+            link.addEventListener('click', function (e) {
+                e.preventDefault();
+                var domain = window.location.hostname;
+                ['path=/;', 'path=/; domain=' + domain + ';', 'path=/; domain=.' + domain + ';'].forEach(function (scope) {
+                    document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; ' + scope;
+                });
+                window.location.reload();
+            });
+        })();
+    </script>
+    <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
+    <!-- Site help chat - explains how Avants AI works, available on every page -->
+    
 
     <button id="siteHelpToggle" title="Help - how does Avants AI work?" aria-label="Open site help chat">
         <i class="fas fa-comment-dots"></i>

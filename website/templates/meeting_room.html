@@ -2,75 +2,7 @@
 {% block title %}Interview - {{ application.job.title }}{% endblock %}
 
 {% block head %}
-<style>
-    body, .main-container { background: #0f172a !important; }
-    .meeting-bar {
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 12px 18px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        flex-wrap: wrap;
-        margin-bottom: 14px;
-    }
-    .meeting-bar .job-info { color: #e2e8f0; font-size: 0.9rem; font-weight: 600; }
-    .meeting-bar .job-meta { color: #94a3b8; font-size: 0.78rem; }
-    .live-chip {
-        display: inline-flex; align-items: center; gap: 5px;
-        background: rgba(5,150,105,0.2); color: #34d399;
-        border: 1px solid rgba(52,211,153,0.3);
-        border-radius: 999px; padding: 4px 12px;
-        font-size: 0.75rem; font-weight: 700;
-    }
-    .live-chip .dot {
-        width: 7px; height: 7px; border-radius: 50%;
-        background: #34d399;
-        animation: pulse 1.5s ease-in-out infinite;
-    }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
-    #dailyFrame {
-        width: 100%; height: 700px;
-        border: none; border-radius: 12px;
-        background: #0f172a; display: block;
-    }
-    .rec-section {
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 12px;
-        margin-top: 16px;
-        overflow: hidden;
-    }
-    .rec-section-header {
-        padding: 14px 18px;
-        display: flex; align-items: center; justify-content: space-between;
-        border-bottom: 1px solid #334155;
-        color: #e2e8f0; font-weight: 600; font-size: 0.9rem;
-    }
-    .rec-item {
-        display: flex; align-items: center; gap: 12px;
-        padding: 12px 18px; border-bottom: 1px solid #1e293b;
-        color: #e2e8f0;
-    }
-    .rec-item:last-child { border-bottom: none; }
-    .hint-bar {
-        margin-top: 10px; color: #64748b;
-        font-size: 0.75rem; text-align: center;
-    }
-    .own-rec-bar {
-        display: flex; align-items: center; justify-content: space-between;
-        gap: 12px; flex-wrap: wrap;
-        background: #1e293b; border: 1px solid #334155; border-radius: 12px;
-        padding: 12px 18px; margin-top: 14px; color: #e2e8f0; font-size: 0.85rem;
-    }
-    .own-rec-bar .rec-dot {
-        display: inline-block; width: 9px; height: 9px; border-radius: 50%;
-        background: #ef4444; margin-right: 7px;
-        animation: pulse 1.5s ease-in-out infinite;
-    }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/meeting_room.css') }}">
 {% endblock %}
 
 {% block content %}

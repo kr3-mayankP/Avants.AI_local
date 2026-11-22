@@ -1,0 +1,354 @@
+:root {
+            --bg:           #f4f5f7;
+            --surface:      #ffffff;
+            --text:         #111318;
+            --text-muted:   #6b7280;
+            --border:       #e5e7eb;
+            --primary:      #4f46e5;
+            --primary-dark: #4338ca;
+            --primary-soft: #eef2ff;
+            --success:      #059669;
+            --success-soft: #d1fae5;
+            --warning:      #b45309;
+            --warning-soft: #fef3c7;
+            --danger:       #dc2626;
+            --danger-soft:  #fee2e2;
+            --radius:       10px;
+            --shadow-sm:    0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            padding-top: 64px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ---- Navbar ---- */
+        .navbar {
+            background: var(--surface) !important;
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+            min-height: 64px;
+        }
+
+        .navbar-brand {
+            font-weight: 800;
+            color: var(--text) !important;
+            letter-spacing: -0.03em;
+            font-size: 1.15rem;
+            margin-right: 0;
+        }
+
+        .logo { height: 28px; width: auto; display: block; }
+
+        .nav-link {
+            font-weight: 500;
+            font-size: 0.875rem;
+            color: var(--text-muted) !important;
+            border-radius: 8px;
+            padding: 7px 12px !important;
+            transition: color 0.12s, background 0.12s;
+            white-space: nowrap;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: var(--text) !important;
+            background: var(--bg);
+        }
+
+        .nav-company-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            border-radius: 999px;
+            padding: 5px 12px 5px 6px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: background 0.12s;
+        }
+        .nav-company-chip:hover { background: #e0e7ff; color: var(--primary); }
+        .nav-company-chip .chip-icon {
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 800;
+        }
+
+        /* ---- Typography ---- */
+        h1, h2, h3, h4, h5, h6 { letter-spacing: -0.02em; }
+
+        /* ---- Buttons ---- */
+        .btn {
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            padding: 9px 18px;
+            transition: all 0.13s;
+            letter-spacing: -0.01em;
+        }
+        .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+        .btn-primary { background: var(--primary); border-color: var(--primary); }
+        .btn-primary:hover { background: var(--primary-dark); border-color: var(--primary-dark); }
+        .btn-outline-primary { color: var(--primary); border-color: var(--primary); }
+        .btn-outline-primary:hover { background: var(--primary); border-color: var(--primary); color: #fff; }
+        .btn-rounded { border-radius: 50px; padding: 10px 24px; }
+
+        /* ---- Alerts ---- */
+        .alert {
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            box-shadow: none;
+            font-size: 0.9rem;
+        }
+
+        /* ---- Layout ---- */
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 28px 20px;
+        }
+        .main-container.wide { max-width: 1440px; }
+
+        /* ---- Cards ---- */
+        .card {
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+            background: var(--surface);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background: var(--surface);
+            color: var(--text);
+            border-bottom: 1px solid var(--border);
+            border-radius: var(--radius) var(--radius) 0 0 !important;
+            font-weight: 600;
+            font-size: 0.9rem;
+            padding: 14px 20px;
+        }
+
+        /* ---- Footer ---- */
+        footer {
+            background: var(--surface);
+            color: var(--text-muted);
+            padding: 24px 0;
+            margin-top: 48px;
+            border-top: 1px solid var(--border);
+            font-size: 0.83rem;
+        }
+        footer a { color: var(--text-muted); text-decoration: none; }
+        footer a:hover { color: var(--text); }
+
+        /* ---- Section titles ---- */
+        .section-title {
+            position: relative;
+            padding-bottom: 12px;
+            margin-bottom: 24px;
+            font-weight: 700;
+        }
+        .section-title:after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0;
+            width: 40px; height: 3px;
+            background: var(--primary);
+            border-radius: 3px;
+        }
+
+        /* ---- Marketplace: job cards ---- */
+        .job-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--surface);
+            padding: 20px;
+            margin-bottom: 16px;
+            transition: border-color 0.13s, box-shadow 0.13s;
+        }
+        .job-card:hover { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.06); }
+        .job-card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; }
+        .job-card.compact { padding: 16px; margin-bottom: 0; height: 100%; }
+        .job-card.compact h3 { font-size: 0.92rem; margin-bottom: 2px; }
+        .job-card.compact .job-card-meta { font-size: 0.78rem; }
+        .job-card.compact .job-card-desc {
+            font-size: 0.82rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* ---- Category pills ---- */
+        .category-pill {
+            display: inline-block;
+            padding: 5px 14px;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 500;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            background: var(--surface);
+            text-decoration: none;
+            margin: 0 5px 8px 0;
+            transition: all 0.13s;
+        }
+        .category-pill:hover { border-color: var(--primary); color: var(--primary); }
+        .category-pill.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+        /* ---- Applicants ---- */
+        .applicant-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 16px 20px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--surface);
+            margin-bottom: 10px;
+            transition: border-color 0.13s;
+        }
+        .applicant-row:hover { border-color: var(--border); }
+
+        .applicant-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 14px 18px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--surface);
+            margin-bottom: 10px;
+        }
+        .applicant-card .rank-badge {
+            flex-shrink: 0;
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 0.8rem; color: var(--text-muted);
+        }
+        .applicant-card .summary-text {
+            font-size: 0.85rem; color: var(--text-muted); margin: 4px 0 8px 0;
+        }
+
+        /* ---- Score pills ---- */
+        .score-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 48px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 0.83rem;
+        }
+        .score-pill.high { background: var(--success-soft); color: var(--success); }
+        .score-pill.mid  { background: var(--warning-soft); color: var(--warning); }
+        .score-pill.low  { background: var(--danger-soft);  color: var(--danger); }
+
+        /* ---- Status badges ---- */
+        .badge-status {
+            display: inline-block;
+            padding: 3px 11px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: capitalize;
+            letter-spacing: 0.02em;
+        }
+        .badge-status.applied      { background: var(--primary-soft); color: var(--primary); }
+        .badge-status.interviewing { background: var(--warning-soft);  color: var(--warning); }
+        .badge-status.rejected     { background: var(--danger-soft);   color: var(--danger); }
+        .badge-status.hired        { background: var(--success-soft);  color: var(--success); }
+        .badge-status.open         { background: var(--success-soft);  color: var(--success); }
+        .badge-status.closed       { background: var(--bg);            color: var(--text-muted); }
+        .badge-status.draft        { background: var(--warning-soft);  color: var(--warning); }
+
+        /* ---- Stats strip ---- */
+        .stats-strip {
+            display: flex;
+            gap: 1px;
+            background: var(--border);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+        .stats-strip-cell {
+            flex: 1;
+            background: var(--surface);
+            padding: 16px 20px;
+            text-align: center;
+        }
+        .stats-strip-cell .sv { font-size: 1.6rem; font-weight: 800; color: var(--text); line-height: 1; }
+        .stats-strip-cell .sl { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+
+        /* ---- Responsive ---- */
+        @media (max-width: 768px) {
+            body { padding-top: 60px; }
+            .main-container { padding: 14px; }
+            .applicant-row { flex-direction: column; align-items: flex-start; }
+            .stats-strip { flex-direction: column; }
+        }
+
+        /* Safety net: if the expanded desktop nav ever runs out of horizontal
+           room, wrap onto a second line instead of overflowing/clipping. */
+        .navbar-nav.ms-auto { flex-wrap: wrap; row-gap: 4px; justify-content: flex-end; }
+
+        @media (max-width: 1199.98px) {
+            .navbar-nav.ms-auto {
+                align-items: stretch !important;
+                width: 100%;
+                padding-bottom: 8px;
+            }
+            .navbar-nav.ms-auto .nav-link {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                justify-content: flex-start;
+                width: 100%;
+                padding: 10px 12px !important;
+            }
+            .navbar-nav.ms-auto .nav-item.dropdown { width: 100%; }
+            .navbar-nav.ms-auto .btn { width: 100%; margin: 6px 0 0 !important; }
+        }
+
+        /* ---- Misc ---- */
+        .text-primary { color: var(--primary) !important; }
+        .feature-icon { font-size: 2rem; color: var(--primary); margin-bottom: 12px; }
+
+        /* ---- Google Translate widget: strip its default chrome to match the nav ---- */
+        #google_translate_element .goog-te-gadget { font-size: 0; }
+        #google_translate_element .goog-te-gadget-simple {
+            background: transparent; border: 1px solid var(--border); border-radius: 999px;
+            padding: 4px 10px; display: inline-flex; align-items: center;
+        }
+        #google_translate_element .goog-te-gadget-simple .goog-te-menu-value {
+            color: var(--text-muted); font-size: 0.8rem; font-family: inherit;
+        }
+        #google_translate_element .goog-te-gadget-icon { display: none; }
+        .goog-te-banner-frame,
+        .goog-te-banner-frame.skiptranslate,
+        iframe.goog-te-banner-frame,
+        #goog-gt-tt, .goog-te-balloon-frame {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+        }
+        html body, html {
+            top: 0 !important;
+            position: static !important;
+        }
+        .goog-tooltip, .goog-tooltip:hover { display: none !important; }
+        .goog-text-highlight { background: none !important; box-shadow: none !important; }

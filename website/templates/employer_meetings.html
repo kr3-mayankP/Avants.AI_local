@@ -2,37 +2,8 @@
 {% block title %}Meetings & Recordings{% endblock %}
 
 {% block head %}
-<style>
-    .meet-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 16px 20px;
-        margin-bottom: 10px;
-    }
-    .meet-card.upcoming { border-left: 4px solid #059669; }
-    .meet-card-header {
-        display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-    }
-    .meet-avatar {
-        width: 40px; height: 40px; border-radius: 50%;
-        background: var(--primary-soft); color: var(--primary);
-        display: flex; align-items: center; justify-content: center;
-        font-weight: 800; font-size: 1rem; flex-shrink: 0;
-    }
-    .meet-meta { font-size: 0.78rem; color: var(--text-muted); }
-    .rec-row {
-        display: flex; align-items: center; gap: 10px;
-        padding: 10px 0; border-top: 1px solid var(--border);
-        flex-wrap: wrap;
-    }
-    .status-chip {
-        font-size: 0.72rem; font-weight: 700; border-radius: 999px;
-        padding: 3px 10px; white-space: nowrap;
-    }
-    .chip-upcoming { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
-    .chip-past     { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/employer_meetings.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mini_calendar.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -64,10 +35,11 @@
         {% set _app = room.application %}
         {% set _candidate = candidate_map.get(_app.candidate_user_id) %}
         {% set _job = job_map.get(_app.job_id) %}
+        {# #new change: show the candidate's combined name in calendar events. #}
         {% set _ = calendar_events.append({
             'date': room.scheduled_date,
             'time': room.scheduled_time or '',
-            'title': (_candidate.first_name or _candidate.email if _candidate else 'Candidate') ~ ' · ' ~ (_job.title if _job else ''),
+            'title': (_candidate.full_name or _candidate.email if _candidate else 'Candidate') ~ ' · ' ~ (_job.title if _job else ''),
             'url': url_for('views.join_meeting', room_name=room.room_name),
         }) %}
     {% endif %}
@@ -90,7 +62,8 @@
         <div class="meet-avatar">{{ initial }}</div>
         <div class="flex-grow-1">
             <div class="fw-semibold" style="font-size:0.95rem;">
-                {{ candidate.first_name or candidate.email }}
+                {# #new change: show the candidate's combined name in meeting cards. #}
+                {{ candidate.full_name or candidate.email }}
                 <span class="text-muted fw-normal" style="font-size:0.82rem;">· {{ candidate.email }}</span>
             </div>
             <div class="meet-meta">

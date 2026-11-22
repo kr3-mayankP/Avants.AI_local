@@ -5,10 +5,15 @@ load_dotenv()
 
 
 class Config:
+    # Keep route limits enabled by default; local .env can disable them for
+    # development without changing production behavior.
+    RATELIMIT_ENABLED = os.getenv("RATELIMIT_ENABLED", "true").lower() == "true"
     # Real public domain used to build links sent in emails - never inferred
     # from the triggering request's Host header (see email_utils.external_url).
     PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "https://apricot-u9ap.onrender.com")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+    OPENROUTER_CHAT_MODEL = os.getenv("OPENROUTER_CHAT_MODEL")
     DAILY_API_KEY = os.getenv("DAILY_API_KEY")
     STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
     STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
@@ -20,7 +25,7 @@ class Config:
     MAIL_PORT = int(os.getenv("MAIL_PORT", "587"))
     MAIL_USE_TLS = True
     MAIL_USERNAME = os.getenv("MAIL_USERNAME")
-    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
+    MAIL_PASSWORD = "".join((os.getenv("MAIL_PASSWORD") or "").split())
     MAIL_DEFAULT_SENDER = ("Avants AI", os.getenv("MAIL_USERNAME")) if os.getenv("MAIL_USERNAME") else None
     GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     # UPLOAD_FOLDER / AUDIO_FOLDER are set as absolute paths in create_app() -
@@ -71,4 +76,3 @@ Robotics engineer passionate about innovation and STEM outreach, with proven abi
 - Clear structure, no bullet points
 """
     OPENAI_MODEL = "gpt-4o"
-
