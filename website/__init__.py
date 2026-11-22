@@ -704,15 +704,36 @@ def create_app():
             )
         return response
 
+    # BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+    # audio_path = os.path.join(BASE_DIR, "..", "audio")
+    # upload_path = os.path.join(BASE_DIR, "..", "uploads")
+
+    # app.config["AUDIO_FOLDER"] = audio_path
+    # app.config["UPLOAD_FOLDER"] = upload_path
+
+    # os.makedirs(audio_path, exist_ok=True)
+    # os.makedirs(upload_path, exist_ok=True)
+    #---------------------------------------------------------------------------
+
+
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-    audio_path = os.path.join(BASE_DIR, "..", "audio")
-    upload_path = os.path.join(BASE_DIR, "..", "uploads")
+
+    # Use writable temporary directories on Vercel
+    if os.environ.get("VERCEL"):
+        audio_path = os.path.join("/tmp", "avants_audio")
+        upload_path = os.path.join("/tmp", "avants_uploads")
+    else:
+        # Keep existing folders for local development and Render
+        audio_path = os.path.join(BASE_DIR, "..", "audio")
+        upload_path = os.path.join(BASE_DIR, "..", "uploads")
 
     app.config["AUDIO_FOLDER"] = audio_path
     app.config["UPLOAD_FOLDER"] = upload_path
 
     os.makedirs(audio_path, exist_ok=True)
     os.makedirs(upload_path, exist_ok=True)
+
+#---------------------------------------------------------------------------
 
     from .models import User, Company, Job, CandidateProfile, Application, CompanyMember, CompanyInvite, EarnTask, TaskSubmission, SavedJob, ContractorProfile, MeetingRoom, Message, EmployerSubscription, MeetingProposal, DataBuyer, Feedback, FeedbackInsight, DeletedJob
 
