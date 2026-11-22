@@ -1,0 +1,195 @@
+"""Employer email verification — token generation/validation plus the actual
+send. Token is stateless (signed + timestamped), so no extra DB table is
+needed; the email send depends on MAIL_USERNAME/MAIL_PASSWORD being set in
+.env (Gmail SMTP + App Password) — until then, sending raises and callers
+should surface a clear "couldn't send" message rather than pretending it worked.
+"""
+import base64
+import io
+import os
+
+from itsdangerous import URLSafeTimedSerializer
+from flask import current_app, url_for
+from flask_mail import Message
+from PIL import Image
+
+from website import mail
+
+VERIFICATION_SALT = "employer-email-verification"
+VERIFICATION_MAX_AGE = 60 * 60 * 24  # 24 hours
+
+_LOGO_PNG_BYTES_CACHE = None
+LOGO_CONTENT_ID = "avants-logo"
+
+
+def _logo_png_bytes():
+    """Resized logo PNG bytes for emails, generated once and cached.
+
+    A remote <img src="https://.../Avants.png"> silently didn't render for
+    some recipients — most likely their mail client blocking remote images
+    by default, possibly compounded by Cloudflare (fronting this Render
+    app) treating the mail client's image-fetching proxy as a bot. Switching
+    to a base64 data URI fixed that, but broke a different, larger set of
+    recipients: Outlook's desktop client (the Word-based rendering engine
+    used by Outlook 2007–2019 and still common in Microsoft 365 "classic"
+    Outlook) does not support data: URIs for images at all - a well-known
+    HTML-email compatibility gap. A CID (Content-ID) inline attachment is
+    part of the actual MIME email standard (RFC 2392), not an HTML src
+    trick, so it's supported everywhere: Outlook, Gmail, Apple Mail, Yahoo,
+    Exchange, all of it. See send_branded_email() for the attach() call and
+    render_branded_email() for the matching cid: src.
+
+    Resized small (2x the display size, for retina) since the full-
+    resolution source PNG is ~350KB — far too large to attach to every email.
+    """
+    global _LOGO_PNG_BYTES_CACHE
+    if _LOGO_PNG_BYTES_CACHE is not None:
+        return _LOGO_PNG_BYTES_CACHE
+
+    logo_path = os.path.join(os.path.dirname(__file__), "website", "static", "Avants.png")
+    img = Image.open(logo_path)
+    w, h = img.size
+    target_h = 64  # displayed at 32px height; 2x for retina
+    target_w = round(w * target_h / h)
+    resized = img.resize((target_w, target_h), Image.LANCZOS)
+
+    buf = io.BytesIO()
+    resized.save(buf, format="PNG", optimize=True)
+    _LOGO_PNG_BYTES_CACHE = buf.getvalue()
+    return _LOGO_PNG_BYTES_CACHE
+
+
+def external_url(endpoint, **values):
+    """Absolute URL for links sent out in emails.
+
+    Emails are opened later, often by someone other than whoever triggered
+    the send, so the link must point at the app's real public domain rather
+    than url_for(_external=True)'s default of the triggering request's Host
+    header — that header is "localhost" for anyone testing against prod data
+    from a dev server, and can be wrong behind a proxy too.
+    """
+    base = current_app.config.get("PUBLIC_BASE_URL")
+    if base:
+        return base.rstrip("/") + url_for(endpoint, **values)
+    return url_for(endpoint, _external=True, **values)
+
+
+def public_base_url():
+    """Same rationale as external_url(), for callers building URLs by hand
+    (e.g. Supabase's redirect_to) instead of through url_for()."""
+    from flask import request
+    base = current_app.config.get("PUBLIC_BASE_URL")
+    if base:
+        return base.rstrip("/")
+    return request.host_url.rstrip("/")
+
+
+def render_branded_email(heading, body_html, cta_label=None, cta_url=None, accent="#4f46e5"):
+    """Shared HTML shell for every transactional email — inline styles only."""
+    cta_block = ""
+    if cta_label and cta_url:
+        cta_block = f"""
+        <tr>
+            <td style="padding: 8px 40px 32px;">
+                <a href="{cta_url}" style="display:inline-block; background:{accent}; color:#ffffff;
+                    text-decoration:none; font-weight:600; font-size:14px; padding:12px 28px;
+                    border-radius:8px; font-family:Arial,Helvetica,sans-serif;">{cta_label}</a>
+            </td>
+        </tr>
+        """
+    # Embedded via CID attachment, not a data URI - see _logo_png_bytes().
+    # Outlook (and other legacy clients) ignore CSS height/width on <img> and
+    # need the HTML attributes set explicitly, or the logo renders broken/huge.
+    logo_html = (
+        f'<img src="cid:{LOGO_CONTENT_ID}" alt="Avants AI" width="106" height="32" '
+        f'style="height:32px; width:106px; display:block; border:0;" />'
+    )
+
+    return f"""
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7f8; padding:32px 0;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="560" cellpadding="0" cellspacing="0"
+                    style="background:#ffffff; border-radius:12px; overflow:hidden; border:1px solid #e6e7eb;
+                    font-family:Arial,Helvetica,sans-serif;">
+                    <tr>
+                        <td style="background:{accent}; padding:20px 40px;">
+                            {logo_html}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:32px 40px 8px;">
+                            <h1 style="margin:0 0 16px; font-size:20px; color:#15161a;">{heading}</h1>
+                            <div style="font-size:14px; line-height:1.6; color:#3a3c42;">{body_html}</div>
+                        </td>
+                    </tr>
+                    {cta_block}
+                    <tr>
+                        <td style="padding:20px 40px; border-top:1px solid #e6e7eb; font-size:12px; color:#6b7280;">
+                            Sent by Avants AI &mdash; the AI-vetted hiring marketplace.
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+    """
+
+
+def send_branded_email(to_email, subject, heading, body_html, plain_text, cta_label=None, cta_url=None):
+    """Sends a styled HTML email with a plain-text fallback. Raises on failure."""
+    msg = Message(
+        subject=subject,
+        recipients=[to_email],
+        body=plain_text,
+        html=render_branded_email(heading, body_html, cta_label, cta_url),
+    )
+    msg.attach(
+        filename="avants-logo.png",
+        content_type="image/png",
+        data=_logo_png_bytes(),
+        disposition="inline",
+        headers={"Content-ID": f"<{LOGO_CONTENT_ID}>"},
+    )
+    mail.send(msg)
+
+
+def generate_verification_token(email):
+    serializer = URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
+    return serializer.dumps(email, salt=VERIFICATION_SALT)
+
+
+def verify_verification_token(token):
+    """Returns the email the token was issued for, or None if invalid/expired."""
+    serializer = URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
+    try:
+        return serializer.loads(token, salt=VERIFICATION_SALT, max_age=VERIFICATION_MAX_AGE)
+    except Exception:
+        return None
+
+
+def send_verification_email(user):
+    """Raises if MAIL_USERNAME/MAIL_PASSWORD aren't configured or sending fails."""
+    if not current_app.config.get("MAIL_USERNAME") or not current_app.config.get("MAIL_PASSWORD"):
+        raise RuntimeError("Email sending is not configured (MAIL_USERNAME/MAIL_PASSWORD missing).")
+
+    token = generate_verification_token(user.email)
+    verify_url = external_url("auth.verify_email", token=token)
+
+    send_branded_email(
+        to_email=user.email,
+        subject="Confirm your email — Avants AI",
+        heading="Confirm your email address",
+        body_html=(
+            f"Hi {user.first_name or 'there'},<br><br>"
+            "Click the button below to verify your email and activate your Avants account."
+        ),
+        plain_text=(
+            f"Hi {user.first_name or 'there'},\n\n"
+            f"Verify your email to activate your account:\n\n"
+            f"{verify_url}\n\n"
+            f"This link expires in 24 hours."
+        ),
+        cta_label="Verify Email",
+        cta_url=verify_url,
+    )

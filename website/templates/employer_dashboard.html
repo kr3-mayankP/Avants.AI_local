@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+{% block title %}Dashboard | {{ company.name }}{% endblock %}
+
+{% block container_class %}wide{% endblock %}
+
+{% block head %}
+<style>
+    .job-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+    .job-tile {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        transition: border-color 0.13s, box-shadow 0.13s;
+    }
+    .job-tile:hover { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.06); }
+    .job-tile-title { font-size: 0.95rem; font-weight: 700; margin: 0; line-height: 1.3; }
+    .job-tile-meta { font-size: 0.78rem; color: var(--text-muted); }
+    .job-tile-actions { margin-top: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+    .job-tile-actions > a, .job-tile-actions > form { flex-shrink: 0; }
+    .job-tile-actions > a:first-child { flex-shrink: 1; }
+    .company-header {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 20px 24px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+    .company-logo {
+        width: 48px; height: 48px;
+        border-radius: 10px;
+        background: var(--primary);
+        color: #fff;
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 800; font-size: 1.3rem;
+        flex-shrink: 0;
+        overflow: hidden;
+    }
+    .company-logo img { width: 100%; height: 100%; object-fit: contain; background: #fff; padding: 6px; box-sizing: border-box; }
+    .unverified-banner {
+        background: var(--warning-soft);
+        border: 1px solid #fcd34d;
+        border-radius: var(--radius);
+        padding: 14px 20px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+    .empty-state {
+        background: var(--surface);
+        border: 1px dashed var(--border);
+        border-radius: var(--radius);
+        padding: 48px 24px;
+        text-align: center;
+    }
+    .empty-icon { font-size: 2.5rem; color: var(--border); margin-bottom: 12px; }
+    .overdue-fee-banner {
+        background: var(--danger-soft);
+        border: 1px solid var(--danger);
+        border-radius: var(--radius);
+        padding: 16px 20px;
+        margin-bottom: 20px;
+    }
+    .overdue-fee-row {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+        padding: 8px 0; border-top: 1px solid rgba(0,0,0,0.08);
+    }
+    .overdue-fee-row:first-of-type { border-top: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Overdue placement fees -->
+{% if overdue_fees %}
+<div class="overdue-fee-banner">
+    <div class="d-flex align-items-start gap-2">
+        <i class="fas fa-triangle-exclamation mt-1" style="color:var(--danger);"></i>
+        <div class="flex-grow-1">
+            <div class="fw-bold" style="color:var(--danger);">
+                {{ overdue_fees|length }} overdue placement fee{{ 's' if overdue_fees|length != 1 }}
+            </div>
+            <p class="mb-2" style="font-size:0.85rem;color:var(--text);">
+                Unpaid invoices accrue interest at 1.5% per month after 30 days. Continued non-payment may result in your account being suspended or your company profile being removed from Avants AI.
+            </p>
+            {% for item in overdue_fees %}
+            <div class="overdue-fee-row">
+                <span style="font-size:0.85rem;">
+                    <strong>{{ item.candidate.first_name if item.candidate else 'Candidate' }}</strong> - {{ item.job.title }}
+                    <span class="text-muted">&middot; {{ item.days_overdue }} days overdue{% if item.fee_amount %} &middot; ${{ '{:,}'.format(item.fee_amount) }}{% endif %}</span>
+                </span>
+                <a href="{{ url_for('employer.applicants', job_id=item.job.id) }}" class="btn btn-sm btn-danger">Pay Now</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Company header -->
+<div class="company-header">
+    <div class="d-flex align-items-center gap-3">
+        <div class="company-logo">
+            {% if company.logo_filename %}
+                <img src="{{ url_for('static', filename='logos/' + company.logo_filename) }}?v={{ company.logo_version or 0 }}" alt="{{ company.name }} logo">
+            {% else %}
+                {{ company.name[0]|upper }}
+            {% endif %}
+        </div>
+        <div>
+            <h1 class="h4 fw-bold mb-0">{{ company.name }}</h1>
+            <div class="text-muted small">
+                {% if company.industry %}{{ company.industry }}{% endif %}
+                {% if company.industry and company.location %} &middot; {% endif %}
+                {% if company.location %}{{ company.location }}{% endif %}
+                {% if not company.industry and not company.location %}
+                    <a href="{{ url_for('employer.company_settings') }}" class="text-primary text-decoration-none">Complete your company profile</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('employer.company_page', company_id=company.id) }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-external-link me-1"></i> Public Page
+        </a>
+        <a href="{{ url_for('employer.talent_pool') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-users me-1"></i> Talent Pool
+        </a>
+        <a href="{{ url_for('employer.company_settings') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-gear me-1"></i> Settings
+        </a>
+        <a href="{{ url_for('employer.post_job') }}" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus me-1"></i> Post a Job
+        </a>
+    </div>
+</div>
+
+<!-- Stats strip -->
+<div class="stats-strip mb-4">
+    <div class="stats-strip-cell">
+        <div class="sv">{{ jobs|length }}</div>
+        <div class="sl">Total Jobs</div>
+    </div>
+    <div class="stats-strip-cell">
+        <div class="sv">{{ open_jobs }}</div>
+        <div class="sl">Open</div>
+    </div>
+    <div class="stats-strip-cell">
+        <div class="sv">{{ total_applicants }}</div>
+        <div class="sl">Applicants</div>
+    </div>
+    <div class="stats-strip-cell">
+        <div class="sv">{{ total_hired }}</div>
+        <div class="sl">Hired</div>
+    </div>
+    <div class="stats-strip-cell">
+        <div class="sv">{{ members|length + 1 }}</div>
+        <div class="sl">Team Members</div>
+    </div>
+</div>
+
+<!-- Job listings -->
+{% set live_jobs   = jobs | selectattr('status', 'equalto', 'open') | list %}
+{% set closed_jobs = jobs | selectattr('status', 'equalto', 'closed') | list %}
+{% set draft_jobs  = jobs | selectattr('status', 'equalto', 'draft') | list %}
+
+{% macro job_tile(job) %}
+<div class="job-tile">
+    <div class="d-flex justify-content-between align-items-start gap-2">
+        <span class="badge-status {{ job.status }}">{{ job.status|capitalize }}</span>
+        <span class="badge-status applied" style="flex-shrink:0;">{{ job.category }}</span>
+    </div>
+    <div>
+        <p class="job-tile-title">{{ job.title }}</p>
+        <p class="job-tile-meta mb-0">{{ job.location or "Remote" }} &middot; {{ job.employment_type or "Full-time" }}</p>
+        {% set sal = job|salary_range %}
+        {% if sal %}
+        <p class="job-tile-meta mb-0" style="color:var(--success); font-weight:600;">
+            <i class="fas fa-dollar-sign" style="font-size:0.7rem;"></i> {{ sal }}
+        </p>
+        {% endif %}
+    </div>
+    <div class="d-flex gap-3 align-items-center text-muted" style="font-size:0.78rem;">
+        <span><i class="fas fa-users me-1"></i>{{ applicant_counts.get(job.id, 0) }} applicant{{ 's' if applicant_counts.get(job.id, 0) != 1 }}</span>
+        {% set h = hired_counts.get(job.id, 0) %}
+        {% if h > 0 %}
+        <span style="color:var(--success); font-weight:600;"><i class="fas fa-trophy me-1"></i>{{ h }} hired</span>
+        {% endif %}
+    </div>
+    <div class="job-tile-actions">
+        <a href="{{ url_for('employer.applicants', job_id=job.id) }}" class="btn btn-outline-primary btn-sm flex-grow-1">
+            View Applicants
+        </a>
+        <a href="{{ url_for('employer.edit_job', job_id=job.id) }}" class="btn btn-outline-secondary btn-sm" title="Edit job">
+            <i class="fas fa-pen"></i>
+        </a>
+        <form method="POST" action="{{ url_for('employer.toggle_job_status', job_id=job.id) }}">
+            {% if job.status == 'open' %}
+            <button type="submit" class="btn btn-outline-secondary btn-sm" title="Close job - stops new applications">
+                <i class="fas fa-lock"></i>
+            </button>
+            {% else %}
+            <button type="submit" class="btn btn-outline-success btn-sm" title="Reopen job">
+                <i class="fas fa-lock-open"></i>
+            </button>
+            {% endif %}
+        </form>
+        <form method="POST" action="{{ url_for('employer.delete_job', job_id=job.id) }}"
+              data-confirm-title="Delete this job posting?"
+              data-confirm-message="{% if applicant_counts.get(job.id, 0) > 0 %}This job has applicants, so it can't be deleted - close it instead to stop new applications while keeping candidate history.{% else %}This permanently removes the job posting. This can't be undone.{% endif %}"
+              data-confirm-btn="Yes, delete">
+            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete job">
+                <i class="fas fa-trash"></i>
+            </button>
+        </form>
+    </div>
+</div>
+{% endmacro %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="h5 fw-bold mb-0">Job Postings</h2>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('employer.deleted_jobs') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-clock-rotate-left me-1"></i> Deleted Jobs
+        </a>
+        <a href="{{ url_for('employer.post_job') }}" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus me-1"></i> New Job
+        </a>
+    </div>
+</div>
+
+{% if not jobs %}
+<div class="empty-state">
+    <div class="empty-icon"><i class="fas fa-briefcase"></i></div>
+    <h4 class="fw-bold mb-2">No jobs posted yet</h4>
+    <p class="text-muted mb-4">Post your first job and let AI screen candidates for you.</p>
+    <a href="{{ url_for('employer.post_job') }}" class="btn btn-primary btn-rounded">Post your first job</a>
+</div>
+{% else %}
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="jobTabs" role="tablist" style="border-bottom: 2px solid var(--border);">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-live" data-bs-toggle="tab" data-bs-target="#pane-live" type="button" role="tab">
+            Live
+            {% if live_jobs %}<span class="badge bg-primary ms-1" style="font-size:0.65rem;">{{ live_jobs|length }}</span>{% endif %}
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-closed" data-bs-toggle="tab" data-bs-target="#pane-closed" type="button" role="tab">
+            Closed
+            {% if closed_jobs %}<span class="badge ms-1" style="font-size:0.65rem;background:var(--text-muted);color:#fff;">{{ closed_jobs|length }}</span>{% endif %}
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-drafts" data-bs-toggle="tab" data-bs-target="#pane-drafts" type="button" role="tab">
+            Drafts
+            {% if draft_jobs %}<span class="badge ms-1" style="font-size:0.65rem;background:var(--warning);color:#fff;">{{ draft_jobs|length }}</span>{% endif %}
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- Live jobs pane (open only - closed jobs move to their own tab) -->
+    <div class="tab-pane fade show active" id="pane-live" role="tabpanel">
+        {% if not live_jobs %}
+        <div class="empty-state" style="padding:32px;">
+            <p class="text-muted mb-2">No live jobs yet.</p>
+            <a href="{{ url_for('employer.post_job') }}" class="btn btn-sm btn-primary">Post a job</a>
+        </div>
+        {% else %}
+        <div class="job-grid">
+            {% for job in live_jobs %}{{ job_tile(job) }}{% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Closed jobs pane -->
+    <div class="tab-pane fade" id="pane-closed" role="tabpanel">
+        {% if not closed_jobs %}
+        <div class="empty-state" style="padding:32px;">
+            <p class="text-muted mb-0">No closed jobs.</p>
+        </div>
+        {% else %}
+        <div class="job-grid">
+            {% for job in closed_jobs %}{{ job_tile(job) }}{% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Drafts pane -->
+    <div class="tab-pane fade" id="pane-drafts" role="tabpanel">
+        {% if not draft_jobs %}
+        <div class="empty-state" style="padding:32px;">
+            <p class="text-muted mb-0">No drafts saved.</p>
+        </div>
+        {% else %}
+        <div class="job-grid">
+            {% for job in draft_jobs %}
+            <div class="job-tile">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <span class="badge-status draft">Draft</span>
+                    <span class="badge-status applied" style="flex-shrink:0;">{{ job.category }}</span>
+                </div>
+                <div>
+                    <p class="job-tile-title">{{ job.title }}</p>
+                    <p class="job-tile-meta mb-0">{{ job.location or "Remote" }} &middot; {{ job.employment_type or "Full-time" }}</p>
+                    {% set sal = job|salary_range %}
+                    {% if sal %}
+                    <p class="job-tile-meta mb-0" style="color:var(--success); font-weight:600;">
+                        <i class="fas fa-dollar-sign" style="font-size:0.7rem;"></i> {{ sal }}
+                    </p>
+                    {% endif %}
+                </div>
+                <div class="job-tile-actions">
+                    <form method="POST" action="{{ url_for('employer.publish_job', job_id=job.id) }}" class="flex-grow-1">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="fas fa-rocket me-1"></i> Publish
+                        </button>
+                    </form>
+                    <a href="{{ url_for('employer.edit_job', job_id=job.id) }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-pen"></i>
+                    </a>
+                    <form method="POST" action="{{ url_for('employer.delete_job', job_id=job.id) }}"
+                          data-confirm-title="Delete this draft?"
+                          data-confirm-message="This permanently removes the draft. This can't be undone."
+                          data-confirm-btn="Yes, delete">
+                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete draft">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endif %}
+
+{% endblock %}

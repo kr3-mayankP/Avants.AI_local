@@ -1,0 +1,1768 @@
+{% extends "base.html" %}
+{% block title %}Resume Job Match{% endblock %}
+
+{% block head %}
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-GLFDS8ZT1H"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-GLFDS8ZT1H');
+</script>
+
+<style>
+    .upload-area {
+        border: 2px dashed #ccc;
+        border-radius: 12px;
+        padding: 40px 20px;
+        text-align: center;
+        cursor: pointer;
+        background-color: #f8f9fa;
+        transition: all 0.3s ease;
+        margin: 20px 0;
+    }
+    
+    .upload-area:hover, .upload-area.dragover {
+        background-color: #e9f7fe;
+        border-color: var(--primary);
+    }
+
+    .upload-area.has-file {
+        border-style: solid;
+        border-color: var(--success, #198754);
+        background-color: #eafaf1;
+    }
+    
+    .score-circle {
+        width: 100px;
+        height: 100px;
+        margin: 8px auto;
+    }
+    
+    .circular-chart {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+    
+    .circle-bg {
+    fill: none;
+    stroke: #eee;
+    stroke-width: 3.8;
+}
+
+.circle {
+    fill: none;
+    stroke-width: 3.8;
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+    transition: stroke-dashoffset 1s ease-out, stroke 0.4s ease;
+}
+
+
+    
+    .percentage {
+        fill: var(--dark);
+        font-size: 0.4em;
+        text-anchor: middle;
+        dominant-baseline: middle;
+        font-weight: bold;
+    }
+    
+    .result-box {
+        min-height: 120px;
+        max-height: 220px;
+        overflow-y: auto;
+        padding: 15px;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+    }
+    
+    .spinner-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(255, 255, 255, 0.8);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        z-index: 10;
+    }
+    
+    .spinner {
+        width: 3rem;
+        height: 3rem;
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        border-left-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 15px;
+    }
+
+    /* Left "Upload & Analyze" form fades out underneath the loading overlay
+       while a match is being generated, so it reads as disabled/busy. */
+    .form-fading {
+        opacity: 0.25;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+    }
+    
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+    
+    .file-name {
+        display: inline-block;
+        max-width: 200px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: middle;
+        margin-left: 10px;
+        font-style: italic;
+    }
+
+    .file-name.has-file {
+        font-style: normal;
+        font-weight: 600;
+        color: var(--success, #198754);
+        max-width: none;
+    }
+    
+    .error-message {
+        display: none;
+        background-color: #ffe0e0;
+        color: #a94442;
+        padding: 12px 20px;
+        border: 1px solid #f5c6cb;
+        border-radius: 8px;
+        font-weight: bold;
+        font-family: Arial, sans-serif;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    
+    .fade-out {
+        opacity: 0;
+        transition: opacity 1s ease;
+    }
+    #history-list .history-item {
+    border: 1px solid #eee;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#history-list .history-item:hover {
+    background: #f4f8ff;
+}
+
+.history-score {
+    font-weight: bold;
+    color: var(--primary);
+}
+
+/* ── Chat Section ─────────────────────────────── */
+.chat-messages {
+    flex: 1;
+    min-height: 220px;
+    overflow-y: auto;
+    padding: 14px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+}
+
+.chat-message {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.chat-message.user-msg {
+    flex-direction: row-reverse;
+}
+
+.chat-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+.chat-avatar.ai { background: linear-gradient(to right, var(--primary), var(--secondary)); color: white; }
+.chat-avatar.user { background: #dee2e6; color: var(--dark); }
+
+.chat-bubble {
+    max-width: 74%;
+    font-size: 0.88rem;
+    line-height: 1.55;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+
+.ai-bubble {
+    color: #2e3c57;
+}
+
+.user-bubble {
+    color: var(--primary);
+}
+
+.chat-job-links {
+    max-width: 74%;
+    margin-left: 38px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.chat-job-link {
+    display: block;
+    padding: 8px 12px;
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s;
+}
+
+.chat-job-link:hover {
+    border-color: var(--primary);
+}
+
+.chat-job-link .cjl-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.chat-job-link .cjl-meta {
+    font-size: 0.76rem;
+    color: #6c757d;
+}
+
+/* Typing dots */
+.typing-bubble {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 10px 14px;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 14px;
+    border-bottom-left-radius: 4px;
+}
+
+.dot {
+    width: 7px;
+    height: 7px;
+    background: #aab;
+    border-radius: 50%;
+    animation: blink 1.2s infinite;
+}
+.dot:nth-child(2) { animation-delay: 0.2s; }
+.dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes blink {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+    40%            { transform: translateY(-5px); opacity: 1; }
+}
+
+.chat-input-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.chat-input-row input {
+    flex: 1;
+}
+
+/* ── Video coaching report - same visual language as the practice interview hub ── */
+.coaching-wrap { padding: 20px 4px 4px; text-align: center; }
+.score-ring-lg {
+    width: 100px; height: 100px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 12px; font-size: 2.2rem; font-weight: 800;
+    border: 5px solid var(--border); transition: border-color 0.6s;
+}
+.score-ring-fill {
+    width: 100%; height: 8px; background: var(--border);
+    border-radius: 99px; overflow: hidden; margin: 8px 0 18px;
+}
+.score-ring-fill-bar { height: 100%; border-radius: 99px; width: 0; transition: width 0.8s ease; }
+.coaching-grid { display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.coaching-block {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px;
+}
+.coaching-block-title {
+    font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 10px;
+}
+.coaching-item {
+    display: flex; gap: 9px; margin-bottom: 8px;
+    align-items: flex-start; font-size: 0.84rem;
+}
+.coaching-item:last-child { margin-bottom: 0; }
+.ci-dot {
+    width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 0.58rem; margin-top: 1px;
+}
+.ci-s { background: var(--success-soft); color: var(--success); }
+.ci-i { background: var(--warning-soft); color: var(--warning); }
+.ci-t { background: var(--primary-soft); color: var(--primary); }
+
+/* ── Compact saved-item row, shared by both saved-results lists ── */
+.compact-history-item { border: 1px solid #eee; border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
+.compact-history-item .chi-top { display: flex; justify-content: space-between; align-items: center; }
+.compact-history-item .chi-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.compact-history-item .chi-time { font-size: 11px; color: #666; }
+.compact-history-item .btn { padding: 1px 8px; font-size: 0.72rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include "_community_resume_count.html" %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12 text-center mb-4">
+            <h1 class="display-5 fw-bold text-primary">Resume Job Matching <span class="badge bg-secondary align-middle" style="font-size:0.9rem; font-weight:600; letter-spacing:0.03em; vertical-align:middle;">COMMUNITY EDITION</span></h1>
+            <p class="lead text-muted">Match your resume against job descriptions to see how well you fit</p>
+        </div>
+    </div>
+
+    {% if not current_user.is_authenticated %}
+    <div class="alert d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:12px;padding:14px 20px;">
+      <span style="color:#1e3a5f;font-size:0.95rem;"><i class="fas fa-lock me-2" style="color:#3b82f6;"></i><strong>Sign in to use this tool</strong> - it's free and takes less than a minute.</span>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('auth.login', next=request.path) }}" class="btn btn-primary btn-sm btn-rounded"><i class="fas fa-sign-in-alt me-1"></i>Sign In</a>
+        <a href="{{ url_for('auth.sign_up', next=request.path) }}" class="btn btn-outline-primary btn-sm btn-rounded"><i class="fas fa-user-plus me-1"></i>Sign Up Free</a>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h3 class="mb-0"><i class="fas fa-file-upload me-2"></i>Upload & Analyze</h3>
+                </div>
+                <div class="card-body position-relative">
+                    <div id="loading-overlay" class="spinner-overlay" style="display: none;">
+                        <div class="spinner"></div>
+                        <p class="fw-bold text-primary">Comparing resume - please wait...</p>
+                        <p class="text-muted fst-italic">This usually takes up to 15 seconds...</p>
+                    </div>
+                    
+                    <div id="error-message" class="error-message"></div>
+                    
+                    <form id="resumeMatchForm" method="POST" enctype="multipart/form-data" action="/resume-jobmatch">
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Job Description</label>
+                            <textarea class="form-control" name="job_req" placeholder="Paste the job description here..." rows="8">{{ job_text or '' }}</textarea>
+                            <div class="form-text">Enter the complete job description to match against your resume</div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Upload Resume</label>
+                            <div class="upload-area" id="upload-area">
+                                <i class="fas fa-cloud-upload-alt fa-2x text-primary mb-3" id="upload-icon"></i>
+                                <p class="mb-1" id="upload-main-text">Drag & drop your resume here</p>
+                                <p class="text-muted small">or</p>
+                                <button type="button" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-folder-open me-1"></i>Browse Files
+                                </button>
+                            </div>
+                            <input id="file-upload" name="resume" type="file" class="d-none" accept=".pdf,.docx,.txt">
+                            <div class="mt-2">
+                                <span id="file-name" class="file-name">No file chosen</span>
+                            </div>
+                            <div class="form-text">Supported formats: PDF, DOCX, TXT (Max 5MB)</div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            {% if current_user.is_authenticated %}
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-search me-2"></i>Analyze Match
+                            </button>
+                            {% else %}
+                            <a href="{{ url_for('auth.login', next=request.path) }}" class="btn btn-primary btn-lg" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;">
+                                <i class="fas fa-sign-in-alt"></i> Sign In to Analyze
+                            </a>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ── Match Results + Chat (stacked, centre column) ── -->
+        <div class="col-lg-4 d-flex flex-column gap-3">
+
+            <!-- Match Results -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Match Results</h3>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-2">
+                        <div class="score-circle mx-auto">
+                            <svg viewBox="0 0 36 36" class="circular-chart">
+                                <path class="circle-bg"
+                                      stroke="#eee"
+                                      d="M18 2.0845
+                                         a 15.9155 15.9155 0 0 1 0 31.831
+                                         a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                <path class="circle"
+                                      d="M18 2.0845
+                                         a 15.9155 15.9155 0 0 1 0 31.831
+                                         a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                <text x="18" y="18" class="percentage">{{ score_value or 0 }}%</text>
+                            </svg>
+                        </div>
+                        <h5 class="mt-1 mb-0">Match Score</h5>
+                        <small class="text-muted">0-30: Poor | 31-60: Fair | 61-80: Good | 81+: Excellent</small>
+                    </div>
+
+                    <div class="result-box">
+                        <h6 class="mb-2">Detailed Analysis</h6>
+                        {# .analysis-content is ALWAYS in the DOM so the View button can populate it #}
+                        <div class="analysis-content">
+                            {% if result %}
+                                {% set lines = result.split('\n') %}
+                                {% for line in lines %}
+                                    {% if line.strip() %}
+                                        {% if 'score' in line.lower() %}
+                                            <p class="fw-bold fs-6">{{ line }}</p>
+                                        {% elif line.startswith('+') %}
+                                            <p class="ms-2 mb-1">
+                                                <i class="fa-solid fa-circle-check text-success me-1"></i>
+                                                <span>{{ line[1:].strip() }}</span>
+                                            </p>
+                                        {% elif line.startswith('-') %}
+                                            <p class="ms-2 mb-1">
+                                                <i class="fa-solid fa-circle-xmark text-danger me-1"></i>
+                                                <span class="text-danger">{{ line[1:].strip() }}</span>
+                                            </p>
+                                        {% else %}
+                                            <p class="mb-1 fw-semibold">{{ line }}</p>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center py-5" id="analysis-empty-state">
+                                    <i class="fas fa-file-search fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">Submit a job description and resume to see the match analysis</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resume Coach Chat - directly below the analysis text -->
+            <div class="card" id="chat-card">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-robot fa-lg"></i>
+                        <h5 class="mb-0">Resume Coach</h5>
+                    </div>
+                </div>
+                <div class="card-body d-flex flex-column" style="padding:14px;">
+                    <div id="chat-messages" class="chat-messages" style="min-height:180px; max-height:320px;">
+                        <!-- Initial AI greeting -->
+                        <div class="chat-message ai-msg">
+                            <div class="chat-avatar ai"><i class="fas fa-robot"></i></div>
+                            <div class="chat-bubble ai-bubble">
+                                Hi! I'm your Resume Coach. Ask me anything - how to improve your resume,
+                                what skills to add, how to rewrite bullet points, or how well you match this role.
+                                Run a job match above for personalised advice!
+                            </div>
+                        </div>
+                        <!-- Typing indicator -->
+                        <div id="chat-typing" class="chat-message ai-msg" style="display:none;">
+                            <div class="chat-avatar ai"><i class="fas fa-robot"></i></div>
+                            <div class="typing-bubble">
+                                <span class="dot"></span>
+                                <span class="dot"></span>
+                                <span class="dot"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if current_user.is_authenticated %}
+                    <div class="chat-input-row" style="margin-top:10px;">
+                        <input type="text" id="chat-input" class="form-control form-control-sm"
+                               placeholder="Ask anything about your resume…" />
+                        <button id="chat-send" class="btn btn-primary btn-sm px-3">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <div class="mt-2 d-flex flex-wrap gap-1" id="chat-suggestions">
+                        <button class="btn btn-outline-secondary btn-sm suggestion-btn" style="font-size:0.75rem;">What skills am I missing?</button>
+                        <button class="btn btn-outline-secondary btn-sm suggestion-btn" style="font-size:0.75rem;">Improve my bullet points</button>
+                        <button class="btn btn-outline-secondary btn-sm suggestion-btn" style="font-size:0.75rem;">Is my resume too long?</button>
+                        <button class="btn btn-outline-secondary btn-sm suggestion-btn" style="font-size:0.75rem;">What goes in my summary?</button>
+                    </div>
+                    {% else %}
+                    <a href="{{ url_for('auth.login', next=request.path) }}" class="btn btn-outline-primary btn-sm w-100 mt-2">
+                        <i class="fas fa-sign-in-alt me-1"></i> Sign In to Chat
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ── Saved Results (resume matches, then video scans right underneath) ──
+             The first card grows to fill the column's full stretched height
+             (matching the Upload/Match Results columns beside it) instead of
+             sitting at its own compact height and leaving a bare gap below -
+             only the Saved Video Scans card underneath it stays a fixed size. -->
+        <div class="col-lg-4 d-flex flex-column gap-3">
+            <div class="card flex-grow-1" style="min-height:0;">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>Saved Results
+                    </h5>
+                </div>
+                <div class="card-body" style="flex:1 1 auto; min-height:0; overflow-y:auto;">
+                    <div id="history-list"></div>
+                    <div id="empty-history" class="text-center text-muted">
+                        No saved analyses yet
+                    </div>
+                </div>
+            </div>
+
+            {% if current_user.is_authenticated %}
+            <div class="card" style="flex-shrink:0;">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-video me-2"></i>Saved Video Scans</h6>
+                </div>
+                <div class="card-body" style="max-height:260px; overflow-y:auto;">
+                    <div id="video-history-list"></div>
+                    <div id="video-empty-history" class="text-center text-muted small">No saved scans yet</div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+    </div><!-- /row g-4 -->
+
+    <!-- ── Video Interview Feedback ── -->
+    <div class="row g-4 mt-1">
+        <div class="col-lg-7">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h3 class="mb-0"><i class="fas fa-video me-2"></i>Video Interview Feedback</h3>
+                </div>
+                <div class="card-body position-relative">
+                    <div id="video-loading-overlay" class="spinner-overlay" style="display: none;">
+                        <div class="spinner" id="video-progress-spinner"></div>
+                        <p class="fw-bold text-primary" id="video-progress-label">Uploading your video...</p>
+                        <div class="progress" style="width:280px; height:10px; margin:0 auto 8px;">
+                            <div class="progress-bar" id="video-upload-progress-bar" role="progressbar" style="width:0%;"></div>
+                        </div>
+                        <p class="text-muted fst-italic small" id="video-progress-subtext">0%</p>
+                    </div>
+
+                    <div id="video-error-message" class="error-message"></div>
+
+                    <p class="text-muted mb-3">Upload a video of yourself answering an interview question - we'll transcribe it and give you a candid report on what was good and what was bad, using the job description above for context if you've filled it in.</p>
+
+                    {% if current_user.is_authenticated %}
+                    <div class="upload-area" id="video-upload-area">
+                        <i class="fas fa-video fa-2x text-primary mb-3" id="video-upload-icon"></i>
+                        <p class="mb-1" id="video-upload-main-text">Drag & drop your interview video here</p>
+                        <p class="text-muted small">or</p>
+                        <button type="button" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-folder-open me-1"></i>Browse Files
+                        </button>
+                    </div>
+                    <input id="video-file-upload" type="file" class="d-none" accept="video/*">
+                    <div class="mt-2">
+                        <span id="video-file-name" class="file-name">No file chosen</span>
+                    </div>
+                    <div class="form-text mb-3">MP4, WebM, MOV, etc. No length limit - longer videos just take a bit longer to process.</div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold mb-1">Also upload your resume (optional)</label>
+                        <input id="video-resume-upload" type="file" class="form-control form-control-sm" accept=".pdf,.docx,.txt">
+                        <div class="form-text">We'll cross-check your answers against it and flag anything that doesn't line up.</div>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="button" id="video-analyze-btn" class="btn btn-primary btn-lg" disabled>
+                            <i class="fas fa-magnifying-glass me-2"></i>Scan My Interview
+                        </button>
+                    </div>
+                    <div id="video-jd-hint" style="display:none;" class="form-text text-warning mt-2">
+                        <i class="fas fa-triangle-exclamation me-1"></i>Add a job description above to also get a fit score and 10 tailored practice questions.
+                    </div>
+                    {% else %}
+                    <a href="{{ url_for('auth.login', next=request.path) }}" class="btn btn-primary btn-lg" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;">
+                        <i class="fas fa-sign-in-alt"></i> Sign In to Analyze
+                    </a>
+                    {% endif %}
+
+                    <div id="video-results" style="display:none;" class="mt-2">
+                        <hr>
+                        <div class="coaching-wrap">
+                            <div id="video-job-fit" style="display:none;" class="mb-4 text-start">
+                                <div class="small fw-bold text-muted text-uppercase mb-1 text-center" style="letter-spacing:0.05em; font-size:0.68rem;">Fit for this role (based on what you said)</div>
+                                <div class="text-center">
+                                    <span class="badge" id="video-job-fit-badge" style="font-size:0.85rem; padding:6px 14px;">-</span>
+                                </div>
+                                <p class="text-muted small mt-2 mb-0 text-center" id="video-job-fit-reasoning"></p>
+                                <div id="video-job-fit-missed-wrap" style="display:none;" class="coaching-block mt-3">
+                                    <div class="coaching-block-title"><i class="fas fa-circle-exclamation me-1" style="color:var(--warning);"></i>From the JD, never addressed</div>
+                                    <div id="video-job-fit-missed"></div>
+                                </div>
+                            </div>
+                            <div class="score-ring-lg" id="videoScoreRing">-</div>
+                            <div class="fw-bold mb-1" style="font-size:1rem;" id="videoScoreLabel">Overall Score</div>
+                            <div class="score-ring-fill">
+                                <div class="score-ring-fill-bar" id="videoScoreBar"></div>
+                            </div>
+                            <p class="text-muted small mb-1" id="video-communication-score-line" style="display:none;"></p>
+                            <p class="text-muted small mb-4">This is private and only visible to you.</p>
+                            <div class="coaching-grid" id="videoCoachingGrid"></div>
+                        </div>
+                        <details class="mt-2">
+                            <summary class="text-muted small" style="cursor:pointer;">View transcript</summary>
+                            <p id="video-transcript" class="small text-muted mt-2" style="white-space:pre-wrap;"></p>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Practice Questions - populated after a scan completes ── -->
+        <div class="col-lg-5">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-list-check me-2"></i>Practice Questions</h5>
+                </div>
+                <div class="card-body">
+                    <div id="practice-questions-empty" class="text-center text-muted py-5">
+                        <i class="fas fa-clipboard-question fa-2x mb-3"></i>
+                        <p class="mb-0">Scan a video on the left to get 10 tailored practice questions for this role.</p>
+                    </div>
+                    <div id="practice-questions-loading" style="display:none;" class="text-center text-muted py-5">
+                        <div class="spinner" style="position:static; display:inline-block; margin-bottom:12px;"></div>
+                        <p class="mb-0">Generating questions for this role...</p>
+                    </div>
+                    <ol id="practice-questions-list" style="display:none; padding-left:1.2rem;"></ol>
+                </div>
+            </div>
+        </div>
+    </div><!-- /row g-4 video feedback -->
+
+    {# Always present - provides initial context; JS can override via updateChatContext() #}
+    <script type="application/json" id="resume-chat-data">{{ {"jobText": job_text or "", "analysis": result or ""} | tojson }}</script>
+
+</div><!-- /container-fluid -->
+
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+    
+        // Get score value from data attribute
+     // Get score value from data attribute
+     const score = parseInt(document.querySelector('.percentage').textContent) || 0;
+    const circle = document.querySelector('.circle');
+    const text = document.querySelector('.percentage');
+    
+    if (circle) {
+        const radius = 15.9155;
+        const circumference = 2 * Math.PI * radius;
+        
+        circle.setAttribute('stroke-dasharray', circumference + ' ' + circumference);
+        circle.setAttribute('stroke-dashoffset', circumference);
+        
+        setTimeout(() => {
+            const offset = circumference * (1 - score / 100);
+            circle.setAttribute('stroke-dashoffset', offset);
+            
+            // Color based on score
+            if (score < 30) {
+                circle.setAttribute("stroke", "#dc3545");
+                circle.style.stroke = "#dc3545";
+            }   
+            else if (score < 61) {
+                circle.setAttribute("stroke", "#ffc107");
+                circle.style.stroke = "#ffc107";
+                    } 
+            else if (score < 81) {
+                circle.setAttribute("stroke", "#4a90e2");
+                circle.style.stroke = "#4a90e2";
+            } else {
+                circle.setAttribute("stroke", "#28a745");
+                circle.style.stroke = "#28a745";
+            }
+
+        }, 100);
+    }
+    
+    // Update percentage text with animation
+    let current = 0;
+    const interval = setInterval(() => {
+        if (current >= score) {
+            clearInterval(interval);
+        } else {
+            current++;
+            if (text) text.textContent = current + "%";
+        }
+    }, 15);
+    
+    // File upload handling
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-upload');
+    const fileNameDisplay = document.getElementById('file-name');
+    const errorMessage = document.getElementById('error-message');
+    const overlay = document.getElementById('loading-overlay');
+    // Scoped by id, not querySelector('form') - base.html's navbar renders
+    // its own job-search <form> before this page's content for logged-in
+    // candidates, and querySelector('form') would silently grab that one
+    // instead, leaving this form with no submit handler at all.
+    const form = document.getElementById('resumeMatchForm');
+    
+    // Click on upload area to trigger file input
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    const uploadIcon = document.getElementById('upload-icon');
+    const uploadMainText = document.getElementById('upload-main-text');
+
+    function markFileUploaded(file) {
+        fileNameDisplay.textContent = '✓ ' + file.name;
+        fileNameDisplay.classList.add('has-file');
+        uploadArea.classList.add('has-file');
+        if (uploadIcon) { uploadIcon.classList.remove('fa-cloud-upload-alt'); uploadIcon.classList.add('fa-circle-check', 'text-success'); uploadIcon.classList.remove('text-primary'); }
+        if (uploadMainText) uploadMainText.textContent = 'File uploaded - click to change';
+    }
+
+    function clearFileUploaded() {
+        fileNameDisplay.textContent = 'No file chosen';
+        fileNameDisplay.classList.remove('has-file');
+        uploadArea.classList.remove('has-file');
+        if (uploadIcon) { uploadIcon.classList.add('fa-cloud-upload-alt'); uploadIcon.classList.remove('fa-circle-check', 'text-success'); uploadIcon.classList.add('text-primary'); }
+        if (uploadMainText) uploadMainText.textContent = 'Drag & drop your resume here';
+    }
+
+    // Drag and drop events
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            fileInput.files = e.dataTransfer.files;
+            markFileUploaded(e.dataTransfer.files[0]);
+        }
+    });
+
+    // File selection change
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            markFileUploaded(fileInput.files[0]);
+        } else {
+            clearFileUploaded();
+        }
+    });
+    
+    // Form submission
+    form.addEventListener('submit', function (e) {
+        const jobText = document.querySelector('textarea[name="job_req"]').value;
+        const fileSelected = fileInput.files.length > 0;
+        
+        if (!jobText.trim() || !fileSelected) {
+            e.preventDefault();
+            
+            errorMessage.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Please provide both a <strong>job description</strong> and a <strong>resume</strong> before submitting.';
+            errorMessage.style.display = 'block';
+            errorMessage.classList.remove('fade-out');
+            
+            setTimeout(() => {
+                errorMessage.classList.add('fade-out');
+            }, 4000);
+            
+            setTimeout(() => {
+                errorMessage.style.display = 'none';
+                errorMessage.classList.remove('fade-out');
+            }, 5000);
+            
+            return;
+        }
+        
+        errorMessage.style.display = 'none';
+        overlay.style.display = 'flex';
+        form.classList.add('form-fading');
+        form.querySelector('button').disabled = true;
+    });
+    // Safely remove junk entries - wrapped so an error here can't block restore
+    try {
+        let h = JSON.parse(localStorage.getItem("analysisNotes")) || [];
+        const before = h.length;
+        h = h.filter(item => item.score > 0 || (item.jobText && item.jobText.trim().length > 0));
+        if (h.length !== before) localStorage.setItem("analysisNotes", JSON.stringify(h));
+    } catch(e) { /* ignore */ }
+
+    // Load saved-results list - wrapped so an error here can't block restore
+    try { loadHistory(); } catch(e) { /* ignore */ }
+
+    // AUTO SAVE - only when the server actually returned a result.
+    try {
+        const _d = document.getElementById('resume-chat-data');
+        if (_d) {
+            const _ctx = JSON.parse(_d.textContent);
+            if (_ctx.analysis && _ctx.analysis.trim().length > 10) {
+                const _newId = autoSaveResult();
+                if (_newId && typeof window.setActiveMatchId === 'function') window.setActiveMatchId(_newId);
+            }
+        }
+    } catch(e) { /* ignore */ }
+
+    // AUTO RESTORE - runs last, independently of everything above.
+    // If the server sent no results (refresh / direct navigation) restore the
+    // most recent saved analysis from localStorage.
+    try {
+        const _d = document.getElementById('resume-chat-data');
+        const _ctx = _d ? JSON.parse(_d.textContent) : {};
+        const _hasServer = !!(_ctx.analysis && _ctx.analysis.trim().length > 10);
+
+        if (!_hasServer) {
+            const _saved = JSON.parse(localStorage.getItem("analysisNotes") || "[]");
+            const _item  = _saved[0];
+
+            if (_item && _item.analysis && _item.analysis.trim().length > 20) {
+
+                // Restore analysis HTML
+                const _box = document.querySelector(".analysis-content");
+                if (_box) {
+                    _box.innerHTML = _item.analysis;
+                    const _es = _box.querySelector('#analysis-empty-state');
+                    if (_es) _es.remove();
+                }
+
+                // Restore job description textarea
+                const _ta = document.querySelector('textarea[name="job_req"]');
+                if (_ta && _item.jobText) _ta.value = _item.jobText;
+
+                // Restore score text (override the "0%" from the template)
+                const _pct = document.querySelector(".percentage");
+                if (_pct) _pct.textContent = (_item.score || 0) + "%";
+
+                // Restore score circle colour + arc
+                const _circ = document.querySelector(".circle");
+                if (_circ) {
+                    const _R = 15.9155, _C = 2 * Math.PI * _R;
+                    const _col = _item.score >= 81 ? "#28a745"
+                               : _item.score >= 61 ? "#4a90e2"
+                               : _item.score >= 31 ? "#ffc107"
+                               : "#dc3545";
+                    _circ.style.stroke = _col;
+                    _circ.setAttribute("stroke", _col);
+                    _circ.setAttribute("stroke-dasharray", _C);
+                    setTimeout(() => {
+                        _circ.setAttribute("stroke-dashoffset", _C * (1 - _item.score / 100));
+                    }, 250);
+                }
+
+                // Update chat context (best-effort - won't break restore if it fails)
+                try {
+                    if (typeof window.updateChatContext === 'function') {
+                        const _tmp = document.createElement('div');
+                        _tmp.innerHTML = _item.analysis;
+                        window.updateChatContext(_item.jobText || '', (_tmp.textContent || '').trim(), _item.conversation, _item.id);
+                    }
+                } catch(_e) { /* ignore chat context errors */ }
+            }
+        }
+    } catch(e) { /* ignore entire restore block */ }
+
+    });
+
+
+/* =====================================
+LOAD HISTORY
+===================================== */
+
+function loadHistory() {
+
+const historyList =
+    document.getElementById("history-list");
+
+const empty =
+    document.getElementById("empty-history");
+
+if (!historyList) return;
+
+historyList.innerHTML = "";
+
+let history =
+    JSON.parse(localStorage.getItem("analysisNotes")) || [];
+
+if (history.length === 0) {
+    if (empty) empty.style.display = "block";
+    return;
+}
+
+if (empty) empty.style.display = "none";
+
+history.forEach(item => {
+
+    const div = document.createElement("div");
+    div.className = "compact-history-item";
+
+    // Safely escape the title for use inside an HTML attribute
+    const _safeTitle = (item.title || 'Resume Match')
+        .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+    div.innerHTML = `
+    <div class="chi-top">
+        <input type="text"
+               class="form-control form-control-sm title-input"
+               value="${_safeTitle}"
+               style="width:55%;">
+        <span class="badge bg-primary">${item.score}%</span>
+    </div>
+    <div class="chi-bottom">
+        <span class="chi-time">${item.time}</span>
+        <div>
+            <button class="btn btn-outline-primary view-btn">View</button>
+            <button class="btn btn-outline-danger delete-btn">Delete</button>
+        </div>
+    </div>
+`;
+const titleInput = div.querySelector(".title-input");
+
+titleInput.addEventListener("change", () => {
+
+    let history = JSON.parse(localStorage.getItem("analysisNotes")) || [];
+
+    const index = history.findIndex(h => h.id === item.id);
+
+    if (index !== -1) {
+        history[index].title = titleInput.value;
+
+        localStorage.setItem("analysisNotes", JSON.stringify(history));
+    }
+});
+    // VIEW
+    div.querySelector(".view-btn").addEventListener("click", () => {
+
+        const jobTextarea =
+            document.querySelector('textarea[name="job_req"]');
+
+        const analysisBox =
+            document.querySelector(".analysis-content");
+
+        const percentBox =
+            document.querySelector(".percentage");
+
+        const circle =
+            document.querySelector(".circle");
+
+            if (jobTextarea) {
+    jobTextarea.value = item.jobText ?? "";
+}
+        if (analysisBox) {
+            analysisBox.innerHTML = item.analysis;
+            // Remove empty-state placeholder if it's still there
+            const emptyState = analysisBox.querySelector('#analysis-empty-state');
+            if (emptyState) emptyState.remove();
+        }
+        if (percentBox) percentBox.textContent = item.score + "%";
+        if (circle) {
+    const radius = 15.9155;
+    const circumference = 2 * Math.PI * radius;
+
+    // Reset dash
+    circle.setAttribute("stroke-dasharray", circumference);
+    circle.setAttribute("stroke-dashoffset", circumference);
+
+    // Set color
+    let color;
+
+if (item.score < 30) color = "#dc3545";
+else if (item.score < 61) color = "#ffc107";
+else if (item.score < 81) color = "#4a90e2";
+else color = "#28a745";
+
+circle.style.stroke = color;
+circle.setAttribute("stroke", color);
+
+    // Re-animate to correct score
+    const offset = circumference * (1 - item.score / 100);
+    setTimeout(() => {
+        circle.setAttribute("stroke-dashoffset", offset);
+    }, 100);
+}
+
+        // ── Update chat with this saved result (pass plain text, not HTML) ──
+        if (typeof window.updateChatContext === 'function') {
+            const _chatTmp = document.createElement('div');
+            _chatTmp.innerHTML = item.analysis || '';
+            const _plainAnalysis = (_chatTmp.textContent || _chatTmp.innerText || '').trim();
+            window.updateChatContext(item.jobText || '', _plainAnalysis, item.conversation, item.id);
+        }
+        // Scroll to chat so user notices it updated
+        const chatCard = document.getElementById('chat-card');
+        if (chatCard) {
+            setTimeout(() => chatCard.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+        }
+
+    });
+
+    // DELETE
+    div.querySelector(".delete-btn").addEventListener("click", () => {
+
+        let history =
+            JSON.parse(localStorage.getItem("analysisNotes")) || [];
+
+        history =
+            history.filter(h => h.id !== item.id);
+
+        localStorage.setItem(
+            "analysisNotes",
+            JSON.stringify(history)
+        );
+
+        loadHistory();
+    });
+
+    historyList.appendChild(div);
+});
+}
+function autoSaveResult() {
+
+const analysisBox = document.querySelector(".analysis-content");
+const jobTextarea = document.querySelector('textarea[name="job_req"]');
+const percentEl = document.querySelector(".percentage");
+const circle = document.querySelector(".circle");
+
+// Only run if results exist
+if (!analysisBox || !percentEl || !jobTextarea || !circle) return;
+
+const analysis = analysisBox.innerHTML.trim();
+if (analysis.length < 20) return null;
+
+const jobText = jobTextarea.value;
+const score = parseInt(percentEl.textContent) || 0;
+const circleColor = circle.getAttribute("stroke");
+
+let history =
+    JSON.parse(localStorage.getItem("analysisNotes")) || [];
+
+const existing = history.find(item =>
+    item.analysis === analysis &&
+    item.jobText === jobText
+);
+if (existing) return existing.id;
+
+const newId = Date.now();
+history.unshift({
+    id: newId,
+    title: "Resume Match",
+    jobText: jobText,
+    score: score,
+    analysis: analysis,
+    circleColor: circleColor,
+    conversation: [],
+    time: new Date().toLocaleString()
+});
+
+history = history.slice(0, 20);
+
+localStorage.setItem(
+    "analysisNotes",
+    JSON.stringify(history)
+);
+
+loadHistory();
+return newId;
+}
+
+
+/* ============================================================
+   RESUME CHAT
+   ============================================================ */
+(function () {
+    // resume-chat-data is always rendered in the template; read context if available
+    const dataEl = document.getElementById('resume-chat-data');
+    let chatCtx = { jobText: '', analysis: '' };
+    if (dataEl) {
+        try { chatCtx = JSON.parse(dataEl.textContent); }
+        catch (e) { /* keep defaults */ }
+    }
+
+    let chatJobText  = chatCtx.jobText  || '';
+    let chatAnalysis = chatCtx.analysis || '';
+
+    const messagesEl = document.getElementById('chat-messages');
+    const typingEl   = document.getElementById('chat-typing');
+    const inputEl    = document.getElementById('chat-input');
+    const sendBtn    = document.getElementById('chat-send');
+
+    // Bail out only if the chat UI elements are genuinely missing
+    if (!messagesEl || !typingEl || !inputEl || !sendBtn) return;
+
+    const conversationHistory = [];   // [{role, content}, …]
+
+    // Which saved match (analysisNotes entry id) new chat messages persist
+    // into. Set whenever a fresh match is auto-saved, or a saved match is
+    // opened via "View" / auto-restore.
+    let activeMatchId = null;
+    window.setActiveMatchId = function (id) { activeMatchId = id; };
+
+    // ── context switch (called on fresh match, "View", and auto-restore) ──
+    window.updateChatContext = function (jobText, analysis, conversation, matchId) {
+        chatJobText   = jobText;
+        chatAnalysis  = analysis;
+        activeMatchId = matchId ?? null;
+
+        // Remove all bubbles except the typing indicator
+        while (messagesEl.firstChild && messagesEl.firstChild !== typingEl) {
+            messagesEl.removeChild(messagesEl.firstChild);
+        }
+
+        conversationHistory.length = 0;
+
+        if (Array.isArray(conversation) && conversation.length > 0) {
+            // Replay the saved conversation for this match instead of
+            // resetting to a fresh greeting.
+            conversation.forEach(msg => {
+                if (!msg || !msg.content) return;
+                appendMessage(msg.role === 'user' ? 'user' : 'ai', msg.content);
+                conversationHistory.push({ role: msg.role, content: msg.content });
+            });
+        } else {
+            appendMessage('ai',
+                "I've loaded a saved analysis. What would you like to improve on your resume for this role? " +
+                "Ask me about missing skills, experience gaps, formatting, or anything else."
+            );
+        }
+    };
+
+    // Persist the current conversation onto its match's saved entry, if any.
+    function persistConversation() {
+        if (activeMatchId == null) return;
+        try {
+            const history = JSON.parse(localStorage.getItem("analysisNotes")) || [];
+            const idx = history.findIndex(h => h.id === activeMatchId);
+            if (idx === -1) return;
+            history[idx].conversation = conversationHistory.slice(-40);
+            localStorage.setItem("analysisNotes", JSON.stringify(history));
+        } catch (e) { /* best-effort - never block chat on a storage error */ }
+    }
+
+    // ── helpers ───────────────────────────────────────────────
+    function escapeHtml(str) {
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function appendMessage(role, text) {
+        // move the typing indicator back to the very end after adding a bubble
+        const div = document.createElement('div');
+        div.className = 'chat-message ' + (role === 'ai' ? 'ai-msg' : 'user-msg');
+
+        const avatarDiv = document.createElement('div');
+        avatarDiv.className = 'chat-avatar ' + (role === 'ai' ? 'ai' : 'user');
+        avatarDiv.innerHTML = role === 'ai'
+            ? '<i class="fas fa-robot"></i>'
+            : '<i class="fas fa-user"></i>';
+
+        const bubbleDiv = document.createElement('div');
+        bubbleDiv.className = 'chat-bubble ' + (role === 'ai' ? 'ai-bubble' : 'user-bubble');
+        bubbleDiv.innerHTML = escapeHtml(text).replace(/\n/g, '<br>');
+
+        div.appendChild(avatarDiv);
+        div.appendChild(bubbleDiv);
+
+        // Insert before the typing indicator so typing always stays last
+        messagesEl.insertBefore(div, typingEl);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function appendJobLinks(jobs) {
+        if (!jobs || !jobs.length) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'chat-job-links';
+        jobs.forEach(job => {
+            const a = document.createElement('a');
+            a.className = 'chat-job-link';
+            a.href = job.url;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.innerHTML =
+                '<div class="cjl-title">' + escapeHtml(job.title) + '</div>' +
+                '<div class="cjl-meta">' + escapeHtml(job.company) + (job.location ? ' &middot; ' + escapeHtml(job.location) : '') + '</div>';
+            wrap.appendChild(a);
+        });
+        messagesEl.insertBefore(wrap, typingEl);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function setTyping(visible) {
+        typingEl.style.display = visible ? 'flex' : 'none';
+        if (visible) messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function setInputLocked(locked) {
+        inputEl.disabled = locked;
+        sendBtn.disabled = locked;
+    }
+
+    // ── send ─────────────────────────────────────────────────
+    async function sendMessage() {
+        const message = inputEl.value.trim();
+        if (!message) return;
+
+        inputEl.value = '';
+        setInputLocked(true);
+
+        appendMessage('user', message);
+        conversationHistory.push({ role: 'user', content: message });
+        setTyping(true);
+
+        try {
+            const resp = await fetch('/resume-chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message:          message,
+                    job_description:  chatJobText,
+                    resume_analysis:  chatAnalysis,
+                    history:          conversationHistory.slice(-20)
+                })
+            });
+
+            const data = await resp.json();
+            setTyping(false);
+
+            const reply = data.reply || 'Sorry, something went wrong. Please try again.';
+            appendMessage('ai', reply);
+            appendJobLinks(data.matching_jobs);
+            conversationHistory.push({ role: 'assistant', content: reply });
+            persistConversation();
+
+        } catch (err) {
+            setTyping(false);
+            appendMessage('ai', 'Connection error - please try again.');
+        }
+
+        setInputLocked(false);
+        inputEl.focus();
+    }
+
+    sendBtn.addEventListener('click', sendMessage);
+    inputEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    // ── Quick suggestion chips ────────────────────────────
+    document.querySelectorAll('.suggestion-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            inputEl.value = btn.textContent.trim();
+            inputEl.focus();
+            sendMessage();
+        });
+    });
+})();
+
+
+    </script>
+
+<script>
+(function () {
+    const uploadArea = document.getElementById('video-upload-area');
+    const fileInput = document.getElementById('video-file-upload');
+    if (!uploadArea || !fileInput) return;  // visitor isn't signed in - widget isn't rendered
+
+    const fileNameDisplay = document.getElementById('video-file-name');
+    const analyzeBtn = document.getElementById('video-analyze-btn');
+    const errorMessage = document.getElementById('video-error-message');
+    const overlay = document.getElementById('video-loading-overlay');
+    const resultsBox = document.getElementById('video-results');
+
+    function showError(message) {
+        errorMessage.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>' + message;
+        errorMessage.style.display = 'block';
+        errorMessage.classList.remove('fade-out');
+        setTimeout(() => errorMessage.classList.add('fade-out'), 4000);
+        setTimeout(() => { errorMessage.style.display = 'none'; errorMessage.classList.remove('fade-out'); }, 5000);
+    }
+
+    function formatMB(bytes) {
+        return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
+    }
+
+    function setFile(file) {
+        if (!file) return;
+        fileInput.files = (() => {
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            return dt.files;
+        })();
+        applySelectedFile(file);
+    }
+
+    const uploadIcon = document.getElementById('video-upload-icon');
+    const uploadMainText = document.getElementById('video-upload-main-text');
+
+    function applySelectedFile(file) {
+        fileNameDisplay.textContent = '✓ ' + file.name + ' (' + formatMB(file.size) + ')';
+        fileNameDisplay.classList.add('has-file');
+        uploadArea.classList.add('has-file');
+        if (uploadIcon) { uploadIcon.classList.remove('fa-video'); uploadIcon.classList.add('fa-circle-check', 'text-success'); uploadIcon.classList.remove('text-primary'); }
+        if (uploadMainText) uploadMainText.textContent = 'Video uploaded - click to change';
+        analyzeBtn.disabled = false;
+    }
+
+    function clearSelectedFile() {
+        fileNameDisplay.textContent = 'No file chosen';
+        fileNameDisplay.classList.remove('has-file');
+        uploadArea.classList.remove('has-file');
+        if (uploadIcon) { uploadIcon.classList.add('fa-video'); uploadIcon.classList.remove('fa-circle-check', 'text-success'); uploadIcon.classList.add('text-primary'); }
+        if (uploadMainText) uploadMainText.textContent = 'Drag & drop your interview video here';
+        analyzeBtn.disabled = true;
+    }
+
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) setFile(e.dataTransfer.files[0]);
+    });
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            applySelectedFile(fileInput.files[0]);
+        } else {
+            clearSelectedFile();
+        }
+    });
+
+    function showVideoCoachingReport(coaching, jobFit, overallScore) {
+        const fitBox = document.getElementById('video-job-fit');
+        if (jobFit && jobFit.verdict) {
+            const fitColors = { 'Strong Yes': '#198754', 'Yes': '#4a90e2', 'No': '#ffc107', 'Strong No': '#dc3545' };
+            const fitLabels = { 'Strong Yes': 'Strong Fit', 'Yes': 'Good Fit', 'No': 'Weak Fit', 'Strong No': 'Not a Fit' };
+            const badge = document.getElementById('video-job-fit-badge');
+            badge.textContent = fitLabels[jobFit.verdict] || jobFit.verdict;
+            badge.style.backgroundColor = fitColors[jobFit.verdict] || '#6c757d';
+            badge.style.color = '#fff';
+            document.getElementById('video-job-fit-reasoning').textContent = jobFit.reasoning || '';
+
+            const missedWrap = document.getElementById('video-job-fit-missed-wrap');
+            const missedList = document.getElementById('video-job-fit-missed');
+            const missed = jobFit.missed_requirements || [];
+            if (missed.length) {
+                missedList.innerHTML = '';
+                missed.forEach(m => {
+                    const row = document.createElement('div');
+                    row.className = 'coaching-item';
+                    row.innerHTML = `<div class="ci-dot ci-i"><i class="fas fa-triangle-exclamation"></i></div><span>${m}</span>`;
+                    missedList.appendChild(row);
+                });
+                missedWrap.style.display = 'block';
+            } else {
+                missedWrap.style.display = 'none';
+            }
+
+            fitBox.style.display = 'block';
+        } else {
+            fitBox.style.display = 'none';
+        }
+
+        const cs = coaching.communication_score || 0;
+        // Falls back to the communication score alone when there's no
+        // separate overall score (e.g. restoring an older saved scan from
+        // before this existed, or no job description was given at scan time).
+        const headline = (typeof overallScore === 'number') ? overallScore : cs;
+        const color = headline >= 75 ? 'var(--success)' : (headline >= 50 ? 'var(--warning)' : 'var(--danger)');
+
+        const ring = document.getElementById('videoScoreRing');
+        ring.textContent = headline;
+        ring.style.borderColor = color;
+        ring.style.color = color;
+
+        const label = document.getElementById('videoScoreLabel');
+        const csLine = document.getElementById('video-communication-score-line');
+        if (typeof overallScore === 'number' && overallScore !== cs) {
+            label.textContent = 'Overall Score';
+            csLine.textContent = `Communication Score: ${cs}/100`;
+            csLine.style.display = 'block';
+        } else {
+            label.textContent = 'Communication Score';
+            csLine.style.display = 'none';
+        }
+
+        setTimeout(() => {
+            const bar = document.getElementById('videoScoreBar');
+            bar.style.background = color;
+            bar.style.width = headline + '%';
+        }, 100);
+
+        const grid = document.getElementById('videoCoachingGrid');
+        let html = '';
+
+        if (coaching.detailed_analysis) {
+            html += `<div class="coaching-block">
+                <div class="coaching-block-title"><i class="fas fa-magnifying-glass me-1" style="color:var(--primary);"></i>Detailed Analysis</div>
+                <p class="mb-0" style="font-size:0.84rem; line-height:1.5;">${coaching.detailed_analysis}</p>
+            </div>`;
+        }
+
+        if (coaching.strengths?.length) {
+            html += `<div class="coaching-block">
+                <div class="coaching-block-title"><i class="fas fa-check-circle me-1" style="color:var(--success);"></i>What you did well</div>`;
+            coaching.strengths.forEach(s => {
+                html += `<div class="coaching-item"><div class="ci-dot ci-s"><i class="fas fa-check"></i></div><span>${s}</span></div>`;
+            });
+            html += '</div>';
+        }
+
+        if (coaching.improvements?.length) {
+            html += `<div class="coaching-block">
+                <div class="coaching-block-title"><i class="fas fa-arrow-trend-up me-1" style="color:var(--warning);"></i>Areas to improve</div>`;
+            coaching.improvements.forEach(i => {
+                html += `<div class="coaching-item"><div class="ci-dot ci-i"><i class="fas fa-triangle-exclamation"></i></div><span>${i}</span></div>`;
+            });
+            html += '</div>';
+        }
+
+        if (coaching.tips?.length) {
+            html += `<div class="coaching-block">
+                <div class="coaching-block-title"><i class="fas fa-lightbulb me-1" style="color:var(--primary);"></i>Tips for next time</div>`;
+            coaching.tips.forEach(t => {
+                html += `<div class="coaching-item"><div class="ci-dot ci-t"><i class="fas fa-lightbulb"></i></div><span>${t}</span></div>`;
+            });
+            html += '</div>';
+        }
+
+        grid.innerHTML = html || '<p class="text-muted small text-center">Great effort!</p>';
+    }
+
+    // ── Saved Video Scans - same localStorage-backed pattern as the resume
+    // match history, just its own key since the two aren't related.
+    const VIDEO_HISTORY_KEY = 'videoAnalysisNotes';
+    const VIDEO_HISTORY_MAX = 20;
+
+    function loadVideoHistory() {
+        const list = document.getElementById('video-history-list');
+        const empty = document.getElementById('video-empty-history');
+        if (!list) return;
+
+        list.innerHTML = '';
+        const history = JSON.parse(localStorage.getItem(VIDEO_HISTORY_KEY)) || [];
+
+        if (history.length === 0) {
+            if (empty) empty.style.display = 'block';
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        history.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'compact-history-item';
+            div.innerHTML = `
+                <div class="chi-top">
+                    <span class="fw-semibold small">Video Scan</span>
+                    <span class="badge bg-primary">${item.score}%</span>
+                </div>
+                <div class="chi-bottom">
+                    <span class="chi-time">${item.time}</span>
+                    <div>
+                        <button class="btn btn-outline-primary view-btn">View</button>
+                        <button class="btn btn-outline-danger delete-btn">Delete</button>
+                    </div>
+                </div>
+            `;
+            div.querySelector('.view-btn').addEventListener('click', () => {
+                showVideoCoachingReport(item.coaching || {}, item.jobFit || null, item.overallScore);
+                document.getElementById('video-transcript').textContent = item.transcript || '';
+                resultsBox.style.display = 'block';
+                resultsBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            });
+            div.querySelector('.delete-btn').addEventListener('click', () => {
+                const remaining = (JSON.parse(localStorage.getItem(VIDEO_HISTORY_KEY)) || []).filter(h => h.id !== item.id);
+                localStorage.setItem(VIDEO_HISTORY_KEY, JSON.stringify(remaining));
+                loadVideoHistory();
+            });
+            list.appendChild(div);
+        });
+    }
+
+    function saveVideoScan(coaching, transcript, jobFit, overallScore) {
+        try {
+            const history = JSON.parse(localStorage.getItem(VIDEO_HISTORY_KEY)) || [];
+            const headline = (typeof overallScore === 'number') ? overallScore : (coaching.communication_score || 0);
+            history.unshift({
+                id: Date.now(),
+                score: headline,
+                overallScore: headline,
+                time: new Date().toLocaleString(),
+                coaching,
+                transcript,
+                jobFit: jobFit || null,
+            });
+            localStorage.setItem(VIDEO_HISTORY_KEY, JSON.stringify(history.slice(0, VIDEO_HISTORY_MAX)));
+            loadVideoHistory();
+        } catch (e) { /* localStorage unavailable - skip persistence, feature still works */ }
+    }
+
+    try { loadVideoHistory(); } catch (e) { /* ignore */ }
+
+    const progressBar = document.getElementById('video-upload-progress-bar');
+    const progressLabel = document.getElementById('video-progress-label');
+    const progressSubtext = document.getElementById('video-progress-subtext');
+
+    function setProgress(pct, label, subtext) {
+        progressBar.style.width = pct + '%';
+        progressLabel.textContent = label;
+        progressSubtext.textContent = subtext;
+    }
+
+    // Uploads go DIRECTLY to Supabase Storage via a signed URL, not to this
+    // app's own /resume-jobmatch/video-feedback route - large uploads sent
+    // straight to avants.ai get rejected at the edge well under what a
+    // longer interview video needs, regardless of anything this app's own
+    // server does. A direct-to-storage upload bypasses that since the big
+    // transfer never touches this app's domain at all - our server only
+    // ever sees the small storage path afterward, via the JSON POST below.
+    //
+    // XMLHttpRequest, not fetch, for the PUT itself - fetch has no
+    // reliable, broadly-supported way to report UPLOAD progress (only
+    // download), and a multi-hundred-MB video with zero feedback for
+    // minutes reads as "this is broken" even when it's working fine.
+    function uploadVideoWithProgress(file) {
+        return new Promise((resolve, reject) => {
+            fetch('/resume-jobmatch/video-feedback/upload-url', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: file.name }),
+            })
+                .then(res => res.json().then(data => ({ ok: res.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) { reject(new Error(data.error || 'Could not prepare the upload.')); return; }
+
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('PUT', data.upload_url);
+                    xhr.setRequestHeader('apikey', data.anon_key);
+                    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+                    xhr.setRequestHeader('x-upsert', 'true');
+
+                    xhr.upload.addEventListener('progress', (e) => {
+                        if (!e.lengthComputable) return;
+                        const pct = Math.round((e.loaded / e.total) * 100);
+                        setProgress(pct, 'Uploading your video...', pct + '% (' + formatMB(e.loaded) + ' / ' + formatMB(e.total) + ')');
+                    });
+                    xhr.addEventListener('load', () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            resolve(data.path);
+                        } else {
+                            reject(new Error(`Upload failed (HTTP ${xhr.status}). Please try again.`));
+                        }
+                    });
+                    xhr.addEventListener('error', () => reject(new Error('The connection was lost while uploading. Please check your network and try again.')));
+                    xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled.')));
+                    xhr.send(file);
+                })
+                .catch(() => reject(new Error('Could not prepare the upload. Please try again.')));
+        });
+    }
+
+    function currentJobReq() {
+        const jobTextarea = document.querySelector('textarea[name="job_req"]');
+        return jobTextarea ? jobTextarea.value : '';
+    }
+
+    // Live warning that fit-score + practice-questions need a job
+    // description - shown upfront rather than only discovered after
+    // scanning, since both features otherwise fail silently with no JD.
+    (function () {
+        const jdHint = document.getElementById('video-jd-hint');
+        const jobTextarea = document.querySelector('textarea[name="job_req"]');
+        if (!jdHint || !jobTextarea) return;
+        function updateHint() {
+            jdHint.style.display = jobTextarea.value.trim() ? 'none' : 'block';
+        }
+        updateHint();
+        jobTextarea.addEventListener('input', updateHint);
+    })();
+
+    function currentResumeFile() {
+        const resumeInput = document.getElementById('video-resume-upload');
+        return (resumeInput && resumeInput.files.length) ? resumeInput.files[0] : null;
+    }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // Kicks off processing, then polls for the result instead of waiting on
+    // one long-held request - the actual pipeline (download + ffmpeg +
+    // Whisper + a coaching GPT call) can run minutes for a long video, and a
+    // single request held open that long risks getting killed by a
+    // reverse-proxy timeout between the browser and this app regardless of
+    // anything this app's own server allows. Each poll is a trivial
+    // in-memory lookup, so none of them can time out that way.
+    async function analyzeUploadedScan(path) {
+        setProgress(100, 'Processing your interview...', 'Transcribing and scoring - this can take a few minutes for longer videos.');
+        const formData = new FormData();
+        formData.append('path', path);
+        formData.append('job_req', currentJobReq());
+        const resume = currentResumeFile();
+        if (resume) formData.append('resume', resume);
+
+        const startRes = await fetch('/resume-jobmatch/video-feedback', { method: 'POST', body: formData });
+        const startData = await startRes.json().catch(() => ({}));
+        if (!startRes.ok) throw new Error(startData.error || 'Something went wrong analyzing your video. Please try again.');
+
+        const jobId = startData.job_id;
+        const startTime = Date.now();
+        const maxWaitMs = 20 * 60 * 1000;  // 20 minutes - generous ceiling, not an expected duration
+
+        while (Date.now() - startTime < maxWaitMs) {
+            await sleep(3000);
+            const pollRes = await fetch(`/resume-jobmatch/video-feedback/status/${jobId}`);
+            const job = await pollRes.json().catch(() => ({}));
+
+            if (!pollRes.ok) throw new Error(job.error || 'Lost track of that scan. Please try again.');
+            if (job.status === 'done') return job;
+            if (job.status === 'error') throw new Error(job.error || 'Something went wrong analyzing your video. Please try again.');
+
+            const elapsedMin = Math.floor((Date.now() - startTime) / 60000);
+            const elapsedSec = Math.floor(((Date.now() - startTime) % 60000) / 1000);
+            setProgress(100, 'Processing your interview...', `Still working - ${elapsedMin}m ${elapsedSec}s elapsed. Longer videos take longer to transcribe.`);
+        }
+        throw new Error('This is taking much longer than expected. Please try again with a shorter video.');
+    }
+
+    async function generatePracticeQuestions() {
+        const jobText = currentJobReq();
+        const emptyEl = document.getElementById('practice-questions-empty');
+        const loadingEl = document.getElementById('practice-questions-loading');
+        const listEl = document.getElementById('practice-questions-list');
+
+        if (!jobText.trim()) {
+            // Silently doing nothing here used to look identical to a
+            // broken feature - the job-fit badge above has the same
+            // requirement and the same silent-skip problem, so this one
+            // message covers both: the real cause is almost always a job
+            // description that was never filled in.
+            emptyEl.innerHTML = '<i class="fas fa-triangle-exclamation fa-2x mb-3 text-warning"></i><p class="mb-0">Add a job description above (in the Upload & Analyze box) to get a fit assessment and 10 tailored practice questions.</p>';
+            emptyEl.style.display = 'block';
+            return;
+        }
+
+        emptyEl.style.display = 'none';
+        listEl.style.display = 'none';
+        loadingEl.style.display = 'block';
+
+        try {
+            const formData = new FormData();
+            formData.append('job_req', jobText);
+            const resume = currentResumeFile();
+            if (resume) formData.append('resume', resume);
+
+            const res = await fetch('/resume-jobmatch/video-feedback/questions', { method: 'POST', body: formData });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.questions || !data.questions.length) throw new Error();
+
+            listEl.innerHTML = '';
+            data.questions.forEach(q => {
+                const li = document.createElement('li');
+                li.className = 'mb-2';
+                li.textContent = q;
+                listEl.appendChild(li);
+            });
+            listEl.style.display = 'block';
+        } catch (e) {
+            emptyEl.innerHTML = '<p class="text-muted mb-0">Couldn\'t generate questions right now. Please try again.</p>';
+            emptyEl.style.display = 'block';
+        } finally {
+            loadingEl.style.display = 'none';
+        }
+    }
+
+    analyzeBtn.addEventListener('click', async () => {
+        if (!fileInput.files.length) return;
+
+        errorMessage.style.display = 'none';
+        setProgress(0, 'Uploading your video...', '0%');
+        overlay.style.display = 'flex';
+        analyzeBtn.disabled = true;
+
+        try {
+            const path = await uploadVideoWithProgress(fileInput.files[0]);
+            const data = await analyzeUploadedScan(path);
+
+            const coaching = data.coaching || {};
+            showVideoCoachingReport(coaching, data.job_fit || null, data.overall_score);
+            document.getElementById('video-transcript').textContent = data.transcript || '';
+            saveVideoScan(coaching, data.transcript || '', data.job_fit || null, data.overall_score);
+
+            resultsBox.style.display = 'block';
+            resultsBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            // Only after a successful scan, not before - per spec, these are
+            // meant to follow an analyzed interview, not appear speculatively.
+            generatePracticeQuestions();
+        } catch (e) {
+            showError(e.message || 'Something went wrong analyzing your video. Please try again.');
+        } finally {
+            overlay.style.display = 'none';
+            analyzeBtn.disabled = false;
+        }
+    });
+})();
+</script>
+{% endblock %}
