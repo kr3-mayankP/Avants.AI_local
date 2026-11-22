@@ -1,0 +1,50 @@
+.profile-tabs {
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 24px;
+        display: flex;
+        gap: 4px;
+    }
+    .profile-tab {
+        padding: 10px 18px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        border: none;
+        background: none;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+        transition: color 0.12s, border-color 0.12s;
+        margin-bottom: -1px;
+    }
+    .profile-tab.active {
+        color: var(--primary);
+        border-bottom-color: var(--primary);
+    }
+    .profile-tab:hover { color: var(--text); }
+    .form-label { font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; }
+    .generate-error {
+        background: var(--danger-soft);
+        color: var(--danger);
+        border-radius: var(--radius);
+        padding: 10px 14px;
+        font-size: 0.85rem;
+        margin-top: 10px;
+    }
+    .suggest-item {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        gap: 16px; padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+    }
+    .suggest-item:last-child { border-bottom: none; }
+    .suggest-item a { font-weight: 700; font-size: 0.9rem; text-decoration: none; color: var(--text); }
+    .suggest-item a:hover { color: var(--primary); }
+    .linkedin-tip {
+        background: var(--primary-soft);
+        border-radius: var(--radius);
+        padding: 12px 16px;
+        font-size: 0.82rem;
+        color: var(--primary);
+        margin-bottom: 16px;
+        display: flex; gap: 8px; align-items: flex-start;
+    }
+    .linkedin-tip i { flex-shrink: 0; margin-top: 2px; }

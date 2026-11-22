@@ -1,0 +1,96 @@
+        if (result.concluded) {
+            concluded = true;
+            showVerdict(result.reply);
+        } else {
+            setQuestion(result.reply, result.reply_audio_url);
+        }
+    } catch (e) {
+        if (savingAndExiting) {
+            // Transcription failed, but still save whatever history already
+            // has rather than trap them on this screen or discard progress.
+            await saveSessionAndExit();
+            return;
+        }
+        recordStatus.textContent = e.message;
+        recordBtn.disabled = false;
+    }
+}
+
+recordBtn.addEventListener("click", async () => {
+    if (concluded) return;
+
+    if (!isRecording) {
+        if (!mediaRecorder) {
+            const ok = await setupRecorder();
+            if (!ok) return;
+        }
+        audioChunks = [];
+        mediaRecorder.start(1000);
+        isRecording = true;
+        recordBtn.classList.add("recording");
+        recordBtn.innerHTML = '<i class="fas fa-stop"></i>';
+        recordStatus.textContent = "Recording... tap to stop";
+    } else {
+        mediaRecorder.stop();
+        isRecording = false;
+        recordBtn.classList.remove("recording");
+        recordBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+    }
+});
+
+const CAMERA_REQUIRED = {{ 'true' if job.camera_required else 'false' }};
+
+async function beginInterview(withCamera) {
+    const btn = document.getElementById('startInterviewBtn');
+    const skipBtn = document.getElementById('skipCameraBtn');
+    const errBox = document.getElementById('cameraError');
+    errBox.style.display = 'none';
+
+    if (withCamera) {
+        btn.disabled = true;
+        if (skipBtn) skipBtn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Enabling camera…';
+
+        try {
+            cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            document.getElementById("selfVideo").srcObject = cameraStream;
+        } catch (e) {
+            const reason = describeMediaError(e, "Camera");
+            const requiredNote = CAMERA_REQUIRED
+                ? ' This employer requires video for this interview, so you need to resolve this before continuing.'
+                : ' Starting with audio only instead.';
+            errBox.innerHTML = `<i class="fas fa-video-slash me-2"></i><strong>${reason}</strong>${requiredNote}`;
+            errBox.style.display = '';
+            btn.disabled = false;
+            if (skipBtn) skipBtn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-video me-2"></i> Allow Camera & Start';
+            if (CAMERA_REQUIRED) return; // this employer requires video - stay on this screen, don't fall through to audio-only
+            // Otherwise camera failed but it's optional - fall through and start audio-only.
+        }
+
+        btn.disabled = false;
+        if (skipBtn) skipBtn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-video me-2"></i> Allow Camera & Start';
+    }
+
+    if (CAMERA_REQUIRED && !cameraStream) return; // shouldn't be reachable (skip button isn't rendered), but don't let a direct call through either
+
+    document.getElementById('selfViewWrap').style.display = cameraStream ? '' : 'none';
+    document.getElementById('tipsScreen').style.display = 'none';
+    document.getElementById('mainInterviewCard').style.display = 'block';
+    interviewStarted = true;
+    startInterview();
+}
+
+// Auto-save via sendBeacon when the page is closed mid-interview - Save &
+// Exit is the only way an interview ends early, so this must never
+// force-submit a verdict.
+window.addEventListener("beforeunload", () => {
+    if (!concluded && interviewStarted && history.length > 0) {
+        const blob = new Blob([JSON.stringify({ history })], { type: "application/json" });
+        navigator.sendBeacon(saveSessionUrl, blob);
+    }
+    if (cameraStream) cameraStream.getTracks().forEach(t => t.stop());
+});
+
+</script>

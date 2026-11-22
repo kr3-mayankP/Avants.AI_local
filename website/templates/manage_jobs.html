@@ -1,0 +1,162 @@
+{# ----------------------------------------------------------------
+   CHANGE BLOCK: 2026-11-22
+   NEW FILE - active implementation
+   ---------------------------------------------------------------- #}
+{% extends "base.html" %}
+{% block title %}Manage Jobs{% endblock %}
+{% block container_class %}wide{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/manage_jobs.css') }}?v=20261122">
+{% endblock %}
+{% block content %}
+<div class="manage-jobs-page">
+    <header class="manage-jobs-header">
+        <div>
+            <h1>Manage Jobs</h1>
+            <p>View, edit and manage all your job postings.</p>
+        </div>
+        <a class="manage-post-button" href="{{ url_for('employer.post_job') }}"><i class="fas fa-plus"></i> Post a Job</a>
+    </header>
+
+    <nav class="manage-status-tabs" aria-label="Job status filters">
+        {% for key, label in [('all','All Jobs'),('active','Active'),('draft','Draft'),('paused','Paused'),('closed','Closed')] %}
+        <a href="{{ url_for('employer.manage_jobs', status=key) }}" class="{{ 'active' if status_filter == key }}">
+            {{ label }} <span>{{ counts[key] }}</span>
+        </a>
+        {% endfor %}
+    </nav>
+
+    <form class="manage-filter-bar" method="GET" action="{{ url_for('employer.manage_jobs') }}">
+        <input type="hidden" name="status" value="{{ status_filter }}">
+        <label class="manage-search">
+            <i class="fas fa-magnifying-glass"></i>
+            <input type="search" name="q" value="{{ request.args.get('q','') }}" placeholder="Search jobs by title or ID...">
+        </label>
+        <select name="location" aria-label="Location"><option value="">Location</option>{% for location in locations %}<option value="{{ location }}" {{ 'selected' if request.args.get('location') == location }}>{{ location }}</option>{% endfor %}</select>
+        <select name="department" aria-label="Department"><option value="">Department</option>{% for department in departments %}<option value="{{ department }}" {{ 'selected' if request.args.get('department') == department }}>{{ department }}</option>{% endfor %}</select>
+        <select name="employment" aria-label="Employment type"><option value="">Employment type</option>{% for employment in employment_types %}<option value="{{ employment }}" {{ 'selected' if request.args.get('employment') == employment }}>{{ employment }}</option>{% endfor %}</select>
+        <select name="owner" aria-label="Owner"><option value="">Owner</option><option value="me" {{ 'selected' if request.args.get('owner') == 'me' }}>Me</option></select>
+        <select name="date" aria-label="Date posted"><option value="">Date posted</option><option value="today" {{ 'selected' if request.args.get('date') == 'today' }}>Today</option><option value="7days" {{ 'selected' if request.args.get('date') == '7days' }}>Last 7 days</option><option value="30days" {{ 'selected' if request.args.get('date') == '30days' }}>Last 30 days</option></select>
+        <button type="submit" class="manage-filter-submit">Apply</button>
+    </form>
+
+    <form id="bulkJobsForm" method="POST">
+        <div class="manage-bulk-bar" id="bulkBar" hidden>
+            <strong id="bulkCount">0 selected</strong>
+            <button type="submit" formaction="{{ url_for('employer.export_jobs') }}" class="manage-bulk-export"><i class="fas fa-download"></i> Export</button>
+            <button type="button" id="bulkCloseButton" class="manage-bulk-close"><i class="fas fa-lock"></i> Close Jobs</button>
+        </div>
+        <div class="manage-table-card">
+            <div class="manage-table-wrap">
+                <table class="manage-table">
+                    <thead>
+                        <tr>
+                            <th class="manage-select-col"><input type="checkbox" id="selectAllJobs" aria-label="Select all jobs"></th>
+                            <th>JOB TITLE</th><th>APPLICATIONS</th><th>STATUS</th><th>POSTED</th><th>UPDATED</th><th>ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for job in jobs %}
+                        {% set display_status = 'active' if job.status == 'open' else job.status %}
+                        <tr>
+                            <td><input type="checkbox" name="job_ids" value="{{ job.id }}" class="manage-job-checkbox" aria-label="Select {{ job.title }}"></td>
+                            <td>
+                                <a class="manage-job-title" href="{{ url_for('employer.job_detail', job_id=job.id) }}">{{ job.title }}</a>
+                                <small>{{ job.location or 'Location not set' }}{% if job.category %} · {{ job.category }}{% endif %}</small>
+                            </td>
+                            <td><strong>{{ application_counts.get(job.id, 0) }}</strong></td>
+                            <td><span class="manage-status {{ display_status }}">{{ display_status|capitalize }}</span></td>
+                            <td>{{ job.created_at|time_ago if job.created_at else '—' }}</td>
+                            <td>{{ job.created_at|time_ago if job.created_at else '—' }}</td>
+                            <td>
+                                <details class="manage-action-menu">
+                                    <summary aria-label="Actions for {{ job.title }}"><i class="fas fa-ellipsis"></i></summary>
+                                    <div class="manage-action-popover">
+                                        <a href="{{ url_for('employer.job_detail', job_id=job.id) }}"><i class="fas fa-eye"></i> View</a>
+                                        <a href="{{ url_for('employer.edit_job', job_id=job.id) }}"><i class="fas fa-pen"></i> Edit</a>
+                                        <button type="submit" formaction="{{ url_for('employer.duplicate_job', job_id=job.id) }}" formmethod="POST"><i class="fas fa-copy"></i> Duplicate</button>
+                                        {% if job.status in ('open','paused') %}
+                                        {% if job.status == 'open' %}
+                                        <button type="submit" formaction="{{ url_for('employer.pause_job', job_id=job.id) }}" formmethod="POST"><i class="fas fa-pause"></i> Pause</button>
+                                        {% else %}
+                                        <button type="submit" formaction="{{ url_for('employer.activate_job', job_id=job.id) }}" formmethod="POST"><i class="fas fa-play"></i> Activate</button>
+                                        {% endif %}
+                                        <button type="submit" formaction="{{ url_for('employer.toggle_job_status', job_id=job.id) }}" formmethod="POST" data-confirm-action="Close this job?"><i class="fas fa-circle-xmark"></i> Close</button>
+                                        {% elif job.status == 'closed' %}
+                                        <button type="submit" formaction="{{ url_for('employer.activate_job', job_id=job.id) }}" formmethod="POST"><i class="fas fa-play"></i> Activate</button>
+                                        {% elif job.status == 'draft' %}
+                                        <button type="submit" formaction="{{ url_for('employer.publish_job', job_id=job.id) }}" formmethod="POST"><i class="fas fa-paper-plane"></i> Publish</button>
+                                        {% endif %}
+                                        <button type="submit" formaction="{{ url_for('employer.delete_job', job_id=job.id) }}" formmethod="POST" class="danger" data-confirm-action="Archive this job?"><i class="fas fa-box-archive"></i> Archive</button>
+                                    </div>
+                                </details>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="7" class="manage-empty"><i class="fas fa-briefcase"></i><strong>No jobs found</strong><span>Try another filter or post a new role.</span><a href="{{ url_for('employer.post_job') }}">Post a Job</a></td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </form>
+</div>
+
+<dialog id="jobConfirmDialog" class="job-confirm-dialog">
+    <form method="dialog">
+        <h2 id="jobConfirmTitle">Confirm action</h2>
+        <p id="jobConfirmMessage">Are you sure you want to continue?</p>
+        <div><button value="cancel" class="manage-bulk-export">Cancel</button><button value="confirm" class="manage-post-button" id="jobConfirmButton">Confirm</button></div>
+    </form>
+</dialog>
+<script>
+(() => {
+    const checkboxes = [...document.querySelectorAll('.manage-job-checkbox')];
+    const selectAll = document.getElementById('selectAllJobs');
+    const bulkBar = document.getElementById('bulkBar');
+    const bulkCount = document.getElementById('bulkCount');
+    const dialog = document.getElementById('jobConfirmDialog');
+    let pendingSubmit = null;
+    function syncBulk() {
+        const count = checkboxes.filter(box => box.checked).length;
+        bulkBar.hidden = count === 0;
+        bulkCount.textContent = `${count} selected`;
+    }
+    selectAll?.addEventListener('change', () => {
+        checkboxes.forEach(box => box.checked = selectAll.checked);
+        syncBulk();
+    });
+    checkboxes.forEach(box => box.addEventListener('change', syncBulk));
+    document.getElementById('bulkCloseButton')?.addEventListener('click', () => {
+        const count = checkboxes.filter(box => box.checked).length;
+        if (!count) return;
+        document.getElementById('jobConfirmTitle').textContent = 'Close selected jobs?';
+        document.getElementById('jobConfirmMessage').textContent = `${count} selected job${count === 1 ? '' : 's'} will stop accepting applications.`;
+        dialog.showModal();
+        pendingSubmit = 'bulk';
+    });
+    dialog?.addEventListener('close', () => {
+        if (dialog.returnValue !== 'confirm' || !pendingSubmit) return;
+        if (pendingSubmit === 'bulk') {
+            const form = document.getElementById('bulkJobsForm');
+            form.action = "{{ url_for('employer.bulk_close_jobs') }}";
+            form.submit();
+        } else if (pendingSubmit instanceof HTMLButtonElement) {
+            const form = pendingSubmit.form;
+            form.action = pendingSubmit.formAction;
+            form.submit();
+        }
+        pendingSubmit = null;
+    });
+    document.querySelectorAll('[data-confirm-action]').forEach(button => {
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            pendingSubmit = button;
+            document.getElementById('jobConfirmTitle').textContent = button.dataset.confirmAction;
+            document.getElementById('jobConfirmMessage').textContent = 'This is a high-impact action. Review it before continuing.';
+            dialog.showModal();
+        });
+    });
+})();
+</script>
+{% endblock %}

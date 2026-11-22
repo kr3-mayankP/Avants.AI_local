@@ -1,0 +1,103 @@
+.pipeline-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: 10px;
+        overflow: hidden;
+        transition: border-color 0.13s;
+    }
+    .pipeline-card:hover { border-color: #c7d2fe; }
+    .pipeline-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 16px 20px;
+        cursor: pointer;
+        user-select: none;
+    }
+    .rank-bubble {
+        width: 30px; height: 30px;
+        border-radius: 50%;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 0.78rem;
+        color: var(--text-muted);
+        flex-shrink: 0;
+    }
+    .candidate-name { font-weight: 700; font-size: 0.95rem; }
+    .candidate-email { font-size: 0.78rem; color: var(--text-muted); }
+    .pipeline-expand-icon { margin-left: auto; color: var(--text-muted); font-size: 0.75rem; transition: transform 0.15s; }
+    .pipeline-card.open .pipeline-expand-icon { transform: rotate(180deg); }
+    .pipeline-body { display: none; padding: 0 20px 18px; border-top: 1px solid var(--border); }
+    .pipeline-card.open .pipeline-body { display: block; }
+    .action-bar {
+        display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+        padding: 14px 0 0;
+    }
+    .detail-section { margin-top: 16px; }
+    .detail-section-label {
+        font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 8px;
+    }
+    .transcript-box {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 14px 16px;
+        font-size: 0.82rem;
+        white-space: pre-wrap;
+        max-height: 260px;
+        overflow-y: auto;
+        font-family: inherit;
+        line-height: 1.65;
+    }
+    .meeting-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: var(--primary-soft); color: var(--primary);
+        border-radius: 999px; padding: 4px 12px;
+        font-size: 0.78rem; font-weight: 600; margin-top: 6px;
+    }
+    .wa-table { font-size: 0.82rem; }
+    .wa-table td:first-child { color: var(--text-muted); font-weight: 500; padding-right: 12px; white-space: nowrap; }
+    .ai-badge-human   { background:#d1fae5; color:#065f46; border-radius:999px; padding:2px 10px; font-size:0.72rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; }
+    .ai-badge-unsure  { background:#fef3c7; color:#92400e; border-radius:999px; padding:2px 10px; font-size:0.72rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; }
+    .ai-badge-ai      { background:#fee2e2; color:#991b1b; border-radius:999px; padding:2px 10px; font-size:0.72rem; font-weight:600; display:inline-flex; align-items:center; gap:4px; }
+    .score-breakdown-grid { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+    .score-breakdown-item { text-align:center; }
+    .schedule-form { background: var(--bg); border-radius: var(--radius); padding: 16px; margin-top: 12px; }
+    .page-header { margin-bottom: 24px; }
+    .page-header h1 { margin-bottom: 4px; }
+    .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .card-tabs {
+        display: flex;
+        gap: 0;
+        border-bottom: 1px solid var(--border);
+        margin: 0 -20px 16px;
+        padding: 0 20px;
+    }
+    .card-tab {
+        padding: 10px 16px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        user-select: none;
+        white-space: nowrap;
+    }
+    .card-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .card-tab:hover:not(.active) { color: var(--text); }
+    .resume-box {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px;
+        font-size: 0.82rem;
+        white-space: pre-wrap;
+        line-height: 1.7;
+        max-height: 360px;
+        overflow-y: auto;
+        font-family: inherit;
+    }

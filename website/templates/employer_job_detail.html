@@ -1,0 +1,77 @@
+{# ----------------------------------------------------------------
+   CHANGE BLOCK: 2026-11-22
+   NEW FILE - active implementation
+   ---------------------------------------------------------------- #}
+{% extends "base.html" %}
+{% block title %}{{ job.title }}{% endblock %}
+{% block container_class %}wide{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/employer_job_detail.css') }}?v=20261122">{% endblock %}
+{% block content %}
+<div class="employer-job-detail">
+    <a class="ej-back" href="{{ url_for('employer.manage_jobs') }}"><i class="fas fa-arrow-left"></i> Back to Jobs</a>
+    <header class="ej-header">
+        <div><div class="ej-title-line"><h1>{{ job.title }}</h1><span class="ej-status {{ active_status }}">{{ active_status|capitalize }}</span></div>
+            <p><i class="fas fa-location-dot"></i> {{ job.location or 'Location not set' }} <span>·</span> {{ job.employment_type or 'Employment type not set' }} <span>·</span> {{ job.salary_currency or 'USD' }} {{ job.salary_usd|default('Salary not disclosed', true) }}{% if job.salary_max_usd %} – {{ job.salary_max_usd }}{% endif %} <span>·</span> Posted {{ job.created_at|time_ago if job.created_at else 'recently' }}</p>
+        </div>
+        <div class="ej-actions"><a href="{{ url_for('employer.edit_job', job_id=job.id) }}"><i class="fas fa-pen"></i> Edit Job</a>
+            <details><summary><i class="fas fa-ellipsis"></i></summary><div>
+                {% if job.status == 'open' %}<form method="POST" action="{{ url_for('employer.pause_job', job_id=job.id) }}"><button>Pause</button></form><form method="POST" action="{{ url_for('employer.toggle_job_status', job_id=job.id) }}"><button>Close</button></form>
+                {% else %}<form method="POST" action="{{ url_for('employer.activate_job', job_id=job.id) }}"><button>Activate</button></form>{% endif %}
+                <form method="POST" action="{{ url_for('employer.duplicate_job', job_id=job.id) }}"><button>Duplicate</button></form>
+            </div></details>
+        </div>
+    </header>
+    <nav class="ej-tabs">
+        {% for key,label in [('overview','Overview'),('applications','Applications'),('matches','AI Matches'),('pipeline','Hiring Pipeline'),('activity','Activity')] %}
+        <a class="{{ 'active' if tab == key }}" href="{{ url_for('employer.job_detail', job_id=job.id, tab=key) }}">{{ label }}{% if key == 'applications' %}<span>{{ applications|length }}</span>{% endif %}</a>
+        {% endfor %}
+    </nav>
+
+    {% if tab == 'overview' %}
+    <section class="ej-metrics">
+        <div><span><i class="fas fa-users"></i> Applications</span><strong>{{ applications|length }}</strong><small>All applicants</small></div>
+        <div><span><i class="fas fa-wand-magic-sparkles"></i> AI Matches</span><strong>{{ applications|length }}</strong><small>Resume matched</small></div>
+        <div><span><i class="fas fa-star"></i> Shortlisted</span><strong>{{ shortlisted|length }}</strong><small>Moving forward</small></div>
+        <div><span><i class="fas fa-calendar-check"></i> Interviews</span><strong>{{ interviewed|length }}</strong><small>Interview stage</small></div>
+        <div><span><i class="fas fa-handshake"></i> Offers</span><strong>{{ offers }}</strong><small>Hires or offers</small></div>
+        <div><span><i class="fas fa-trophy"></i> Hired</span><strong>{{ hired|length }}</strong><small>Completed hires</small></div>
+    </section>
+    {% set secs = job.description_sections %}
+    <div class="ej-overview-grid">
+        <section class="ej-card"><h2>Job Description</h2>{% if secs %}{% if secs.about %}<p>{{ secs.about }}</p>{% endif %}{% if secs.what_you_do %}<h3>Responsibilities</h3><p>{{ secs.what_you_do }}</p>{% endif %}{% if secs.contract_terms %}<h3>Contract &amp; Payment Terms</h3><p>{{ secs.contract_terms }}</p>{% endif %}{% else %}<p>{{ job.description_text or job.description }}</p>{% endif %}</section>
+        <aside class="ej-card ej-requirements"><h2>Key Requirements</h2>{% if secs and secs.requirements %}<p>{{ secs.requirements }}</p>{% else %}<p>Requirements will appear after the role description is updated.</p>{% endif %}{% if secs and secs.preferred %}<h3>Preferred Qualifications</h3><p>{{ secs.preferred }}</p>{% endif %}<ul>{% if job.interview_length %}<li><i class="fas fa-circle-check"></i> {{ job.interview_length|capitalize }} AI interview</li>{% endif %}{% if job.camera_required %}<li><i class="fas fa-circle-check"></i> Camera required</li>{% endif %}{% if job.employment_type %}<li><i class="fas fa-circle-check"></i> {{ job.employment_type }}</li>{% endif %}</ul></aside>
+    </div>
+    {% endif %}
+
+    {% if tab in ('applications','matches','pipeline') %}
+    <section class="ej-card ej-candidates">
+        <div class="ej-section-heading"><div><h2>{% if tab == 'matches' %}AI Matches{% elif tab == 'pipeline' %}Hiring Pipeline{% else %}Applications{% endif %}</h2><p>{% if tab == 'matches' %}Resume alignment and experience gaps.{% elif tab == 'pipeline' %}Update candidate stages and create the next hiring event.{% else %}All candidates for this role.{% endif %}</p></div><span>{{ applications|length }} total</span></div>
+        {% if applications %}
+        <div class="ej-candidate-list">
+            {% for row in applications %}
+            {% set app = row.application %}
+            {% if tab != 'matches' or row.match_score is not none %}
+            <article>
+                <span class="ej-avatar">{{ row.candidate_name[0]|upper }}</span>
+                <div class="ej-candidate-main"><strong>{{ row.candidate_name }}</strong><small>{{ row.profile.headline if row.profile and row.profile.headline else 'Candidate profile' }}</small>{% if row.explanation %}<p>{{ row.explanation }}</p>{% endif %}</div>
+                {% if row.score is not none %}<span class="ej-score">{{ row.score }}%<small>AI match</small></span>{% endif %}
+                <span class="ej-candidate-status {{ app.status }}">{{ app.status|capitalize }}</span>
+                {% if tab == 'pipeline' %}
+                <form method="POST" action="{{ url_for('employer.update_status', application_id=app.id) }}" class="ej-status-form">
+                    <select name="status" aria-label="Candidate status" onchange="this.form.submit()"><option value="applied" {{ 'selected' if app.status == 'applied' }}>Applied</option><option value="interviewing" {{ 'selected' if app.status == 'interviewing' }}>Interviewing</option><option value="rejected" {{ 'selected' if app.status == 'rejected' }}>Rejected</option><option value="hired" {{ 'selected' if app.status == 'hired' }}>Hired</option></select>
+                </form>
+                {% endif %}
+                <a class="ej-open" href="{{ url_for('employer.applicants', job_id=job.id) }}" aria-label="Open applicant"><i class="fas fa-arrow-right"></i></a>
+            </article>
+            {% endif %}
+            {% endfor %}
+        </div>
+        {% else %}<div class="ej-empty"><i class="fas fa-user-group"></i><strong>No candidates yet</strong><p>Applications for this role will appear here.</p></div>{% endif %}
+    </section>
+    {% endif %}
+
+    {% if tab == 'activity' %}
+    <section class="ej-card ej-activity"><div class="ej-section-heading"><div><h2>Hiring Activity</h2><p>A chronological log of applications and candidate stage changes.</p></div></div>{% if activity_items %}<div class="ej-timeline">{% for item in activity_items %}<div><span><i class="fas {{ 'fa-user-plus' if item.action == 'application' else 'fa-arrow-right-arrow-left' }}"></i></span><div><strong>{{ item.detail }}</strong><small>{{ item.created_at|time_ago if item.created_at else 'Recently' }}</small></div></div>{% endfor %}</div>{% else %}<div class="ej-empty"><i class="fas fa-clock-rotate-left"></i><strong>No activity yet</strong></div>{% endif %}</section>
+    {% endif %}
+</div>
+{% endblock %}

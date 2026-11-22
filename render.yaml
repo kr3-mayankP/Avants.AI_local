@@ -1,0 +1,93 @@
+services:
+  - type: web
+    name: apricot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # gthread (not more worker *processes*) + a longer timeout - the video
+    # scan route can now run for minutes (ffmpeg + Whisper + a coaching GPT
+    # call on a long upload), and gunicorn's bare default is a single sync
+    # worker with a 30s timeout, which would both kill that request AND
+    # block every other visitor to the whole site for its entire duration.
+    # Extra *processes* instead of threads would silently break two things
+    # that are explicitly single-process-only: app.py's _RESUME_MATCH_CACHE
+    # (an in-memory dict keyed by a one-time redirect token) and
+    # Flask-Limiter's in-memory rate-limit storage - both assume one shared
+    # memory space, which threads preserve and extra processes would not.
+    startCommand: gunicorn app:app --worker-class gthread --threads 4 --timeout 300
+    envVars:
+      # Pinned explicitly (highest-precedence method per Render's docs) after
+      # a deploy started failing with "ModuleNotFoundError: No module named
+      # 'psycopg'" - Render had silently moved new deployments to Python
+      # 3.14, which psycopg2-binary doesn't yet have a wheel for. A
+      # .python-version file is also present as a backup/for other tooling.
+      - key: PYTHON_VERSION
+        value: 3.12.11
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PUBLIC_BASE_URL
+        value: https://avants.ai
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_SERVER
+        value: smtp.gmail.com
+      - key: MAIL_PORT
+        value: "587"
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /etc/secrets/google-credentials.json
+      # Preferred over GOOGLE_APPLICATION_CREDENTIALS - paste the full service
+      # account JSON key as this variable's value directly. Render's Secret
+      # Files (mounted at the path above) repeatedly failed to actually land
+      # on disk in production, so app.py checks this first and only falls
+      # back to the file path if it's unset.
+      - key: GOOGLE_CREDENTIALS_JSON
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      # Dataset marketplace subscription (Earn task exports sold to outside
+      # companies) - separate price/webhook from the placement-fee flow above.
+      - key: STRIPE_DATA_PRICE_ID
+        sync: false
+      - key: STRIPE_DATA_WEBHOOK_SECRET
+        sync: false
+      - key: DAILY_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+  # Daily off-Supabase database backup, so employer/candidate data survives
+  # even if the Supabase project itself were ever lost - not just accidental
+  # row deletes. Dumps every table to gzipped JSON and uploads it to a Google
+  # Drive folder (see backup_database.py). Read-only against the database.
+  - type: cron
+    name: avants-db-backup
+    runtime: python
+    plan: starter
+    schedule: "0 9 * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python backup_database.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.11
+      - key: DATABASE_URL
+        sync: false
+      - key: GOOGLE_CREDENTIALS_JSON
+        sync: false
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /etc/secrets/google-credentials.json
+      - key: GOOGLE_DRIVE_BACKUP_FOLDER_ID
+        sync: false
+      - key: BACKUP_RETENTION_DAYS
+        value: "30"

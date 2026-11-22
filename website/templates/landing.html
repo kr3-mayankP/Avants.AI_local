@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% block title %}AI-Powered Hiring | Avants{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+{% endblock %}
+
+{% block content %}
+
+<!-- ── HERO ── -->
+<div class="hero-wrap">
+    <div class="hero-glow"></div>
+    <div class="hero-badge">AI-Powered Hiring Platform</div>
+    <h1 class="hero-title">Apply once.<br><span>Get a real answer.</span></h1>
+    <p class="hero-sub" style="max-width:480px;">
+        Avants AI runs a real voice interview with every candidate and scores every resume automatically -
+        the first platform to make AI interviews a standard part of applying for a job.
+    </p>
+    <div class="hero-explainer">
+        <div class="hero-explainer-col">
+            <div class="hero-explainer-label"><i class="fas fa-user"></i> If you're job hunting</div>
+            <p>Apply, get interviewed by AI, see your match score - hear back in hours instead of weeks.</p>
+        </div>
+        <div class="hero-explainer-divider"></div>
+        <div class="hero-explainer-col">
+            <div class="hero-explainer-label"><i class="fas fa-building"></i> If you're hiring</div>
+            <p>Post a job and every applicant is automatically interviewed, scored, and ranked for you.</p>
+        </div>
+    </div>
+    <div class="hero-cta-group">
+        <a href="{{ url_for('candidate.browse_jobs') }}" class="btn-hero-primary">
+            <i class="fas fa-search"></i> Browse open roles
+        </a>
+        <a href="{{ url_for('auth.sign_up', role='employer') }}" class="btn-hero-outline">
+            <i class="fas fa-briefcase"></i> I'm hiring
+        </a>
+    </div>
+    <p class="mt-3 mb-0" style="font-size:0.95rem;">
+        Or try our free resume tools <span class="badge bg-secondary" style="font-size:0.55rem; font-weight:600; letter-spacing:0.03em; vertical-align:middle;">COMMUNITY EDITION</span> -
+        <a href="{{ url_for('resumemat') }}" style="color:var(--primary);text-decoration:none;">
+            <i class="fas fa-file-circle-check me-1"></i>Job Match</a>
+        ·
+        <a href="{{ url_for('resumesum') }}" style="color:var(--primary);text-decoration:none;">
+            <i class="fas fa-file-lines me-1"></i>Resume Summarizer</a>
+        - no cost, sign-up only takes a minute
+    </p>
+</div>
+
+
+<!-- ── WHAT MAKES US DIFFERENT ── -->
+<div class="diff-section reveal">
+    <div class="container">
+        <div class="text-center mb-4">
+            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--primary);margin-bottom:8px;">Why Avants</div>
+            <h2 style="font-size:1.6rem;font-weight:800;letter-spacing:-0.03em;margin:0;">Not another job board.</h2>
+        </div>
+        <div class="diff-grid reveal-stagger">
+            <div class="diff-card">
+                <div class="diff-tag">Only on Avants</div>
+                <div class="diff-icon"><i class="fas fa-microphone"></i></div>
+                <h3>Voice AI interview</h3>
+                <p>Every candidate completes a structured voice interview tailored to the role before employers read a single resume. Your answers matter more than your formatting.</p>
+            </div>
+            <div class="diff-card">
+                <div class="diff-tag">Only on Avants</div>
+                <div class="diff-icon"><i class="fas fa-chart-bar"></i></div>
+                <h3>See your match score first</h3>
+                <p>Before you hit submit, Avants AI scores your resume 0–100 against the job description with a clear breakdown. Know your odds before you apply.</p>
+            </div>
+            <div class="diff-card">
+                <div class="diff-tag">Only on Avants</div>
+                <div class="diff-icon"><i class="fas fa-bolt"></i></div>
+                <h3>Employers get verdicts, not piles</h3>
+                <p>Employers receive candidates ranked by AI score and interview verdict, not a pile of PDFs. Faster decisions, real feedback, and no 3-month silence.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── LATEST ROLES ── -->
+{% if job_data %}
+<div class="roles-section reveal">
+    <div class="container">
+        <div class="roles-header">
+            <h2>Latest roles</h2>
+            <a href="{{ url_for('candidate.browse_jobs') }}">View all <i class="fas fa-arrow-right ms-1"></i></a>
+        </div>
+        <div class="roles-grid">
+            {% for item in job_data %}
+            {% set job = item.job %}
+            <a href="{{ url_for('candidate.job_detail', job_id=job.id) }}" class="role-card">
+                <div>
+                    <div class="role-company">{{ job.company.name if job.company else 'Company' }}</div>
+                    <div class="role-title">{{ job.title }}</div>
+                </div>
+                <div class="role-meta">
+                    {% if job.location %}
+                    <span class="role-tag"><i class="fas fa-location-dot"></i> {{ job.location }}</span>
+                    {% endif %}
+                    {% if job.employment_type %}
+                    <span class="role-tag">{{ job.employment_type }}</span>
+                    {% endif %}
+                    {% if job.category %}
+                    <span class="role-tag">{{ job.category }}</span>
+                    {% endif %}
+                </div>
+                {% set salary_str = job|salary_range %}
+                {% if salary_str %}
+                <div class="role-salary">{{ salary_str }}</div>
+                {% endif %}
+                <div class="role-footer">
+                    <span class="role-apply-btn">Apply <i class="fas fa-arrow-right"></i></span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ── HOW IT WORKS ── -->
+<div class="hiw-section reveal">
+    <div class="container">
+        <div class="text-center">
+            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--primary);margin-bottom:8px;">How it works</div>
+            <h2 style="font-size:1.6rem;font-weight:800;letter-spacing:-0.03em;margin:0;">From application to offer in hours</h2>
+        </div>
+        <div class="hiw-steps reveal-stagger">
+            <div class="hiw-step">
+                <div class="hiw-num">Step 01</div>
+                <h3>Apply in minutes</h3>
+                <p>Upload your resume or paste LinkedIn text. AI extracts your experience automatically. No long forms.</p>
+            </div>
+            <div class="hiw-step">
+                <div class="hiw-num">Step 02</div>
+                <h3>See your match score</h3>
+                <p>Your resume is scored 0–100 against the job. You see the breakdown: strengths, gaps, before you submit.</p>
+            </div>
+            <div class="hiw-step">
+                <div class="hiw-num">Step 03</div>
+                <h3>Complete the AI interview</h3>
+                <p>A structured voice interview tailored to the role. The AI listens, asks follow-ups, and generates a verdict employers trust.</p>
+            </div>
+            <div class="hiw-step">
+                <div class="hiw-num">Step 04</div>
+                <h3>Get a real decision</h3>
+                <p>Employers receive a ranked, pre-screened pipeline and move fast. You get a real answer, not silence.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── FOR CANDIDATES / EMPLOYERS ── -->
+<div class="value-section reveal">
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="value-col">
+                    <div class="eyebrow"><i class="fas fa-user me-1"></i> For candidates</div>
+                    <h2>Stop disappearing into the pile</h2>
+                    <p class="text-muted" style="font-size:0.88rem;">Traditional applications get ignored. Avants makes sure your skills are seen, scored, and seriously considered.</p>
+                    <ul class="check-list">
+                        <li><i class="fas fa-check-circle"></i> Know your match score before you hit submit</li>
+                        <li><i class="fas fa-check-circle"></i> AI coaching on how to close your skill gaps</li>
+                        <li><i class="fas fa-check-circle"></i> Voice interview that proves your skills beyond the resume</li>
+                        <li><i class="fas fa-check-circle"></i> Real feedback, not automated rejection 3 months later</li>
+                        <li><i class="fas fa-check-circle"></i> Track all your applications in one dashboard</li>
+                    </ul>
+                    <a href="{{ url_for('candidate.browse_jobs') }}" class="btn btn-primary btn-rounded">
+                        <i class="fas fa-search me-1"></i> Browse open roles
+                    </a>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="value-col">
+                    <div class="eyebrow"><i class="fas fa-building me-1"></i> For employers</div>
+                    <h2>A ranked shortlist, not a pile of PDFs</h2>
+                    <p class="text-muted" style="font-size:0.88rem;">Post a role in minutes. Every applicant is AI-scored and voice-interviewed before you read a single resume.</p>
+                    <ul class="check-list">
+                        <li><i class="fas fa-check-circle"></i> AI ranks applicants by match score automatically</li>
+                        <li><i class="fas fa-check-circle"></i> Read the AI interview verdict before committing time</li>
+                        <li><i class="fas fa-check-circle"></i> Structured job description builder with AI assist</li>
+                        <li><i class="fas fa-check-circle"></i> Schedule, message, and update status in one place</li>
+                        <li><i class="fas fa-check-circle"></i> Company page with team members and public profile</li>
+                    </ul>
+                    <a href="{{ url_for('auth.sign_up', role='employer') }}" class="btn btn-primary btn-rounded">
+                        <i class="fas fa-briefcase me-1"></i> Post a job for free
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── MORE THAN HIRING ── -->
+<div class="platform-section reveal">
+    <div class="container">
+        <div class="text-center mb-4">
+            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--primary);margin-bottom:8px;">One platform</div>
+            <h2 style="font-size:1.6rem;font-weight:800;letter-spacing:-0.03em;margin:0;">More than a hiring site.</h2>
+            <p class="text-muted mt-2 mb-0" style="font-size:0.95rem;">Advanced Artificial Intelligence, applied to hiring, resumes, and the data that trains the models behind it all.</p>
+        </div>
+        <div class="platform-grid reveal-stagger">
+            <a href="{{ url_for('candidate.browse_jobs') }}" class="platform-card">
+                <div class="platform-icon" style="background:var(--primary-soft); color:var(--primary);"><i class="fas fa-microphone"></i></div>
+                <h3>AI Hiring</h3>
+                <p>Voice-interview-powered hiring for candidates and employers - the core of Avants. Apply, get scored, get interviewed, get a real answer.</p>
+                <span class="platform-link">Browse open roles <i class="fas fa-arrow-right ms-1"></i></span>
+            </a>
+            <a href="{{ url_for('resumemat') }}" class="platform-card">
+                <div class="platform-icon" style="background:#dcfce7; color:#15803d;"><i class="fas fa-file-circle-check"></i></div>
+                <h3>Community Edition</h3>
+                {% include "_community_resume_count.html" %}
+                <p>Free tools open to everyone - job match scoring, an AI resume summarizer, and a mock interview practice hub, no application required.</p>
+                <span class="platform-link">Try it free <i class="fas fa-arrow-right ms-1"></i></span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- ── BOTTOM CTA ── -->
+<div class="bottom-cta">
+    <div class="container">
+        <h2>Stop applying into the void.</h2>
+        <p>Join candidates and companies using Avants AI to hire and get hired, with real AI interviews, real scores, and real answers.</p>
+        <a href="{{ url_for('auth.sign_up') }}" class="btn-cta-white">
+            Create a free account <i class="fas fa-arrow-right"></i>
+        </a>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var targets = document.querySelectorAll('.reveal');
+    if (targets.length === 0) return;
+
+    function revealAll() {
+        targets.forEach(function (el) { el.classList.add('in-view'); });
+    }
+
+    // Safety net: a public landing page must never end up with content
+    // stuck invisible - if anything goes wrong with the observer below (or
+    // it's just slow), everything is forced visible after 2s regardless.
+    var fallback = setTimeout(revealAll, 2000);
+
+    try {
+        if (!('IntersectionObserver' in window)) {
+            clearTimeout(fallback);
+            revealAll();
+            return;
+        }
+        var observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('in-view');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+        targets.forEach(function (el) { observer.observe(el); });
+    } catch (e) {
+        clearTimeout(fallback);
+        revealAll();
+    }
+})();
+</script>
+{% endblock %}

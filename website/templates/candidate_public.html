@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{# #new change: use the combined name in the public profile title. #}
+{% block title %}{{ user.full_name or user.email }} - Avants AI{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/candidate_public.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <a href="javascript:history.back()" class="text-muted small text-decoration-none mb-3 d-inline-block">
+            <i class="fas fa-arrow-left me-1"></i> Back
+        </a>
+
+        <div class="card mb-4">
+            <div class="card-body p-4 p-md-5">
+                <div class="prof-header">
+                    {# #new change: keep the avatar initial safe when a legacy name field is empty. #}
+                    <div class="prof-avatar">{{ (user.first_name or user.last_name or user.email or '?')[0]|upper }}</div>
+                    <div>
+                        {# #new change: show both stored name fields on the candidate's public profile. #}
+                        <h1 class="h3 fw-bold mb-1">{{ user.full_name or user.email }}{% if user.full_name and profile.location %} &middot; {% endif %}{{ profile.location or '' }}</h1>
+                        {% if profile.headline %}
+                            <p class="text-muted mb-2">{{ profile.headline }}</p>
+                        {% endif %}
+                        {% if profile.availability %}
+                            <span class="avail-badge">
+                                <i class="fas fa-circle" style="font-size:0.5rem;"></i>
+                                Available {{ profile.availability }}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="meta-row">
+                    {% if profile.work_preference %}
+                        <span class="meta-item"><i class="fas fa-laptop-house"></i> {{ profile.work_preference }}</span>
+                    {% endif %}
+                    {% if profile.years_experience %}
+                        <span class="meta-item"><i class="fas fa-briefcase"></i> {{ profile.years_experience }} yrs experience</span>
+                    {% endif %}
+                    {% if profile.target_roles %}
+                        <span class="meta-item"><i class="fas fa-bullseye"></i> Interested in: {{ profile.target_roles }}</span>
+                    {% endif %}
+                    {% if profile.linkedin_url %}
+                        <a href="{{ profile.linkedin_url }}" target="_blank" class="meta-item text-decoration-none">
+                            <i class="fab fa-linkedin" style="color:#0a66c2;"></i> LinkedIn
+                        </a>
+                    {% endif %}
+                </div>
+
+                {% if profile.skills %}
+                    <div class="mb-4">
+                        <div class="text-muted small fw-semibold mb-2">SKILLS</div>
+                        {% for skill in profile.skills.split(',') %}
+                            <span class="skill-tag">{{ skill.strip() }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+            </div>
+        </div>
+
+        {% if current_user.is_authenticated and current_user.role == 'employer' %}
+        <div class="card">
+            <div class="card-body p-4">
+                <h5 class="fw-bold mb-3">Invite to Apply</h5>
+                <!-- #new change: display the candidate's full name in the invite prompt. -->
+                <p class="text-muted small mb-3">Send {{ user.full_name or user.email }} a notification to check out one of your open jobs.</p>
+                {% if employer_jobs %}
+                    <div class="d-flex flex-wrap gap-2" id="inviteBtns">
+                        {% for job in employer_jobs %}
+                            <button class="btn btn-outline-primary btn-sm"
+                                    onclick="inviteCandidate({{ user.id }}, {{ job.id }}, '{{ job.title|e }}', this)">
+                                <i class="fas fa-paper-plane me-1"></i> {{ job.title }}
+                            </button>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted small">You don't have any open jobs right now. <a href="{{ url_for('employer.post_job') }}">Post one</a> first.</p>
+                {% endif %}
+                <div id="inviteStatus" class="mt-2 small text-success" style="display:none;"></div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// #new change: serialize the candidate's combined name safely into JavaScript.
+const candidateName = {{ (user.full_name or user.email or 'Candidate')|tojson }};
+
+async function inviteCandidate(userId, jobId, jobTitle, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-check me-1"></i> Invited';
+    btn.classList.replace('btn-outline-primary', 'btn-success');
+    await fetch(`/candidates/${userId}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId })
+    });
+    document.getElementById('inviteStatus').style.display = '';
+    // #new change: use the combined name in the invitation confirmation.
+    document.getElementById('inviteStatus').textContent = `Invitation sent for "${jobTitle}"! ${candidateName} will be notified.`;
+}
+</script>
+{% endblock %}

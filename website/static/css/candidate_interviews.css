@@ -1,0 +1,29 @@
+.interview-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 18px 22px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        transition: border-color 0.13s;
+    }
+    .interview-card.upcoming { border-left: 4px solid #059669; }
+    .interview-card.past     { opacity: 0.7; }
+    .co-avatar {
+        width: 44px; height: 44px; border-radius: 10px;
+        background: var(--primary-soft); color: var(--primary);
+        display: flex; align-items: center; justify-content: center;
+        font-weight: 800; font-size: 1.1rem; flex-shrink: 0;
+    }
+    .int-title  { font-weight: 700; font-size: 0.95rem; margin-bottom: 2px; }
+    .int-meta   { font-size: 0.78rem; color: var(--text-muted); }
+    .int-time   {
+        font-size: 0.82rem; font-weight: 600;
+        background: var(--bg); border: 1px solid var(--border);
+        border-radius: 8px; padding: 6px 12px; white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .int-time.soon { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }

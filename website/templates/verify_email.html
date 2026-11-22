@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Check Your Email | Avants{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/verify_email.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+    <div class="auth-card">
+        <div class="email-icon">
+            <i class="fas fa-envelope-open-text"></i>
+        </div>
+
+        {% if email_send_failed %}
+        <h1 class="verify-title">Email not sent</h1>
+        <p class="verify-sub">
+            Your account was created, but we couldn't send a confirmation link to<br>
+            <span class="email-highlight">{{ email }}</span>
+        </p>
+        <p class="verify-sub">Check the mail settings, then use the resend button below.</p>
+        {% else %}
+        <h1 class="verify-title">Check your email</h1>
+        <p class="verify-sub">
+            {% if email_sent %}We sent a confirmation link to{% else %}Confirmation email for{% endif %}<br>
+            <span class="email-highlight">{{ email }}</span>
+        </p>
+        <p class="verify-sub">
+            {% if email_sent %}Click the link in that email to activate your account.{% else %}
+            If the email was sent, click its link to activate your account.
+            {% endif %}
+        </p>
+        {% endif %}
+
+        <div class="steps-box">
+            <div class="step">
+                <div class="step-num">1</div>
+                <span>Open your inbox and find an email from <strong>Avants AI</strong></span>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <span>Click <strong>"Confirm your email"</strong> in that message</span>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <span>You'll be logged in and ready to go</span>
+            </div>
+        </div>
+
+        <p class="verify-sub" style="font-size:0.82rem;">
+            Can't find it? Check your spam folder, or resend below.
+        </p>
+
+        <form method="POST" action="{{ url_for('auth.resend_verification') }}" class="resend-form">
+            <input type="hidden" name="email" value="{{ email }}">
+            <button type="submit" class="btn btn-outline-primary w-100" style="padding:10px; font-size:0.88rem;">
+                <i class="fas fa-paper-plane me-2"></i>Resend confirmation email
+            </button>
+        </form>
+
+        <div class="divider-line">or</div>
+
+        <a href="{{ url_for('auth.login') }}" class="text-muted text-decoration-none" style="font-size:0.85rem;">
+            Already confirmed? <span class="fw-semibold" style="color: var(--primary);">Log in</span>
+        </a>
+    </div>
+</div>
+{% endblock %}

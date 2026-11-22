@@ -1,0 +1,429 @@
+
+
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+    
+        // Get score value from data attribute
+     // Get score value from data attribute
+     const score = parseInt(document.querySelector('.percentage').textContent) || 0;
+    const circle = document.querySelector('.circle');
+    const text = document.querySelector('.percentage');
+    
+    if (circle) {
+        const radius = 15.9155;
+        const circumference = 2 * Math.PI * radius;
+        
+        circle.setAttribute('stroke-dasharray', circumference + ' ' + circumference);
+        circle.setAttribute('stroke-dashoffset', circumference);
+        
+        setTimeout(() => {
+            const offset = circumference * (1 - score / 100);
+            circle.setAttribute('stroke-dashoffset', offset);
+            
+            // Color based on score
+            if (score < 30) {
+                circle.setAttribute("stroke", "#dc3545");
+                circle.style.stroke = "#dc3545";
+            }   
+            else if (score < 61) {
+                circle.setAttribute("stroke", "#ffc107");
+                circle.style.stroke = "#ffc107";
+                    } 
+            else if (score < 81) {
+                circle.setAttribute("stroke", "#4a90e2");
+                circle.style.stroke = "#4a90e2";
+            } else {
+                circle.setAttribute("stroke", "#28a745");
+                circle.style.stroke = "#28a745";
+            }
+
+        }, 100);
+    }
+    
+    // Update percentage text with animation
+    let current = 0;
+    const interval = setInterval(() => {
+        if (current >= score) {
+            clearInterval(interval);
+        } else {
+            current++;
+            if (text) text.textContent = current + "%";
+        }
+    }, 15);
+    
+    // File upload handling
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-upload');
+    const fileNameDisplay = document.getElementById('file-name');
+    const errorMessage = document.getElementById('error-message');
+    const overlay = document.getElementById('loading-overlay');
+    // Scoped by id, not querySelector('form') - base.html's navbar renders
+    // its own job-search <form> before this page's content for logged-in
+    // candidates, and querySelector('form') would silently grab that one
+    // instead, leaving this form with no submit handler at all.
+    const form = document.getElementById('resumeMatchForm');
+    
+    // Click on upload area to trigger file input
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    const uploadIcon = document.getElementById('upload-icon');
+    const uploadMainText = document.getElementById('upload-main-text');
+
+    function markFileUploaded(file) {
+        fileNameDisplay.textContent = '✓ ' + file.name;
+        fileNameDisplay.classList.add('has-file');
+        uploadArea.classList.add('has-file');
+        if (uploadIcon) { uploadIcon.classList.remove('fa-cloud-upload-alt'); uploadIcon.classList.add('fa-circle-check', 'text-success'); uploadIcon.classList.remove('text-primary'); }
+        if (uploadMainText) uploadMainText.textContent = 'File uploaded - click to change';
+    }
+
+    function clearFileUploaded() {
+        fileNameDisplay.textContent = 'No file chosen';
+        fileNameDisplay.classList.remove('has-file');
+        uploadArea.classList.remove('has-file');
+        if (uploadIcon) { uploadIcon.classList.add('fa-cloud-upload-alt'); uploadIcon.classList.remove('fa-circle-check', 'text-success'); uploadIcon.classList.add('text-primary'); }
+        if (uploadMainText) uploadMainText.textContent = 'Drag & drop your resume here';
+    }
+
+    // Drag and drop events
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            fileInput.files = e.dataTransfer.files;
+            markFileUploaded(e.dataTransfer.files[0]);
+        }
+    });
+
+    // File selection change
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            markFileUploaded(fileInput.files[0]);
+        } else {
+            clearFileUploaded();
+        }
+    });
+    
+    // Form submission
+    form.addEventListener('submit', function (e) {
+        const jobText = document.querySelector('textarea[name="job_req"]').value;
+        const fileSelected = fileInput.files.length > 0;
+        
+        if (!jobText.trim() || !fileSelected) {
+            e.preventDefault();
+            
+            errorMessage.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Please provide both a <strong>job description</strong> and a <strong>resume</strong> before submitting.';
+            errorMessage.style.display = 'block';
+            errorMessage.classList.remove('fade-out');
+            
+            setTimeout(() => {
+                errorMessage.classList.add('fade-out');
+            }, 4000);
+            
+            setTimeout(() => {
+                errorMessage.style.display = 'none';
+                errorMessage.classList.remove('fade-out');
+            }, 5000);
+            
+            return;
+        }
+        
+        errorMessage.style.display = 'none';
+        overlay.style.display = 'flex';
+        form.classList.add('form-fading');
+        form.querySelector('button').disabled = true;
+    });
+    // Safely remove junk entries - wrapped so an error here can't block restore
+    try {
+        let h = JSON.parse(localStorage.getItem("analysisNotes")) || [];
+        const before = h.length;
+        h = h.filter(item => item.score > 0 || (item.jobText && item.jobText.trim().length > 0));
+        if (h.length !== before) localStorage.setItem("analysisNotes", JSON.stringify(h));
+    } catch(e) { /* ignore */ }
+
+    // Load saved-results list - wrapped so an error here can't block restore
+    try { loadHistory(); } catch(e) { /* ignore */ }
+
+    // AUTO SAVE - only when the server actually returned a result.
+    try {
+        const _d = document.getElementById('resume-chat-data');
+        if (_d) {
+            const _ctx = JSON.parse(_d.textContent);
+            if (_ctx.analysis && _ctx.analysis.trim().length > 10) {
+                const _newId = autoSaveResult();
+                if (_newId && typeof window.setActiveMatchId === 'function') window.setActiveMatchId(_newId);
+            }
+        }
+    } catch(e) { /* ignore */ }
+
+    // AUTO RESTORE - runs last, independently of everything above.
+    // If the server sent no results (refresh / direct navigation) restore the
+    // most recent saved analysis from localStorage.
+    try {
+        const _d = document.getElementById('resume-chat-data');
+        const _ctx = _d ? JSON.parse(_d.textContent) : {};
+        const _hasServer = !!(_ctx.analysis && _ctx.analysis.trim().length > 10);
+
+        if (!_hasServer) {
+            const _saved = JSON.parse(localStorage.getItem("analysisNotes") || "[]");
+            const _item  = _saved[0];
+
+            if (_item && _item.analysis && _item.analysis.trim().length > 20) {
+
+                // Restore analysis HTML
+                const _box = document.querySelector(".analysis-content");
+                if (_box) {
+                    _box.innerHTML = _item.analysis;
+                    const _es = _box.querySelector('#analysis-empty-state');
+                    if (_es) _es.remove();
+                }
+
+                // Restore job description textarea
+                const _ta = document.querySelector('textarea[name="job_req"]');
+                if (_ta && _item.jobText) _ta.value = _item.jobText;
+
+                // Restore score text (override the "0%" from the template)
+                const _pct = document.querySelector(".percentage");
+                if (_pct) _pct.textContent = (_item.score || 0) + "%";
+
+                // Restore score circle colour + arc
+                const _circ = document.querySelector(".circle");
+                if (_circ) {
+                    const _R = 15.9155, _C = 2 * Math.PI * _R;
+                    const _col = _item.score >= 81 ? "#28a745"
+                               : _item.score >= 61 ? "#4a90e2"
+                               : _item.score >= 31 ? "#ffc107"
+                               : "#dc3545";
+                    _circ.style.stroke = _col;
+                    _circ.setAttribute("stroke", _col);
+                    _circ.setAttribute("stroke-dasharray", _C);
+                    setTimeout(() => {
+                        _circ.setAttribute("stroke-dashoffset", _C * (1 - _item.score / 100));
+                    }, 250);
+                }
+
+                // Update chat context (best-effort - won't break restore if it fails)
+                try {
+                    if (typeof window.updateChatContext === 'function') {
+                        const _tmp = document.createElement('div');
+                        _tmp.innerHTML = _item.analysis;
+                        window.updateChatContext(_item.jobText || '', (_tmp.textContent || '').trim(), _item.conversation, _item.id);
+                    }
+                } catch(_e) { /* ignore chat context errors */ }
+            }
+        }
+    } catch(e) { /* ignore entire restore block */ }
+
+    });
+
+
+/* =====================================
+LOAD HISTORY
+===================================== */
+
+function loadHistory() {
+
+const historyList =
+    document.getElementById("history-list");
+
+const empty =
+    document.getElementById("empty-history");
+
+if (!historyList) return;
+
+historyList.innerHTML = "";
+
+let history =
+    JSON.parse(localStorage.getItem("analysisNotes")) || [];
+
+if (history.length === 0) {
+    if (empty) empty.style.display = "block";
+    return;
+}
+
+if (empty) empty.style.display = "none";
+
+history.forEach(item => {
+
+    const div = document.createElement("div");
+    div.className = "compact-history-item";
+
+    // Safely escape the title for use inside an HTML attribute
+    const _safeTitle = (item.title || 'Resume Match')
+        .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+    div.innerHTML = `
+    <div class="chi-top">
+        <input type="text"
+               class="form-control form-control-sm title-input"
+               value="${_safeTitle}"
+               style="width:55%;">
+        <span class="badge bg-primary">${item.score}%</span>
+    </div>
+    <div class="chi-bottom">
+        <span class="chi-time">${item.time}</span>
+        <div>
+            <button class="btn btn-outline-primary view-btn">View</button>
+            <button class="btn btn-outline-danger delete-btn">Delete</button>
+        </div>
+    </div>
+`;
+const titleInput = div.querySelector(".title-input");
+
+titleInput.addEventListener("change", () => {
+
+    let history = JSON.parse(localStorage.getItem("analysisNotes")) || [];
+
+    const index = history.findIndex(h => h.id === item.id);
+
+    if (index !== -1) {
+        history[index].title = titleInput.value;
+
+        localStorage.setItem("analysisNotes", JSON.stringify(history));
+    }
+});
+    // VIEW
+    div.querySelector(".view-btn").addEventListener("click", () => {
+
+        const jobTextarea =
+            document.querySelector('textarea[name="job_req"]');
+
+        const analysisBox =
+            document.querySelector(".analysis-content");
+
+        const percentBox =
+            document.querySelector(".percentage");
+
+        const circle =
+            document.querySelector(".circle");
+
+            if (jobTextarea) {
+    jobTextarea.value = item.jobText ?? "";
+}
+        if (analysisBox) {
+            analysisBox.innerHTML = item.analysis;
+            // Remove empty-state placeholder if it's still there
+            const emptyState = analysisBox.querySelector('#analysis-empty-state');
+            if (emptyState) emptyState.remove();
+        }
+        if (percentBox) percentBox.textContent = item.score + "%";
+        if (circle) {
+    const radius = 15.9155;
+    const circumference = 2 * Math.PI * radius;
+
+    // Reset dash
+    circle.setAttribute("stroke-dasharray", circumference);
+    circle.setAttribute("stroke-dashoffset", circumference);
+
+    // Set color
+    let color;
+
+if (item.score < 30) color = "#dc3545";
+else if (item.score < 61) color = "#ffc107";
+else if (item.score < 81) color = "#4a90e2";
+else color = "#28a745";
+
+circle.style.stroke = color;
+circle.setAttribute("stroke", color);
+
+    // Re-animate to correct score
+    const offset = circumference * (1 - item.score / 100);
+    setTimeout(() => {
+        circle.setAttribute("stroke-dashoffset", offset);
+    }, 100);
+}
+
+        // ── Update chat with this saved result (pass plain text, not HTML) ──
+        if (typeof window.updateChatContext === 'function') {
+            const _chatTmp = document.createElement('div');
+            _chatTmp.innerHTML = item.analysis || '';
+            const _plainAnalysis = (_chatTmp.textContent || _chatTmp.innerText || '').trim();
+            window.updateChatContext(item.jobText || '', _plainAnalysis, item.conversation, item.id);
+        }
+        // Scroll to chat so user notices it updated
+        const chatCard = document.getElementById('chat-card');
+        if (chatCard) {
+            setTimeout(() => chatCard.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
+        }
+
+    });
+
+    // DELETE
+    div.querySelector(".delete-btn").addEventListener("click", () => {
+
+        let history =
+            JSON.parse(localStorage.getItem("analysisNotes")) || [];
+
+        history =
+            history.filter(h => h.id !== item.id);
+
+        localStorage.setItem(
+            "analysisNotes",
+            JSON.stringify(history)
+        );
+
+        loadHistory();
+    });
+
+    historyList.appendChild(div);
+});
+}
+function autoSaveResult() {
+
+const analysisBox = document.querySelector(".analysis-content");
+const jobTextarea = document.querySelector('textarea[name="job_req"]');
+const percentEl = document.querySelector(".percentage");
+const circle = document.querySelector(".circle");
+
+// Only run if results exist
+if (!analysisBox || !percentEl || !jobTextarea || !circle) return;
+
+const analysis = analysisBox.innerHTML.trim();
+if (analysis.length < 20) return null;
+
+const jobText = jobTextarea.value;
+const score = parseInt(percentEl.textContent) || 0;
+const circleColor = circle.getAttribute("stroke");
+
+let history =
+    JSON.parse(localStorage.getItem("analysisNotes")) || [];
+
+const existing = history.find(item =>
+    item.analysis === analysis &&
+    item.jobText === jobText
+);
+if (existing) return existing.id;
+
+const newId = Date.now();
+history.unshift({
+    id: newId,
+    title: "Resume Match",
+    jobText: jobText,
+    score: score,
+    analysis: analysis,
+    circleColor: circleColor,
+    conversation: [],
+    time: new Date().toLocaleString()
+});
+
+history = history.slice(0, 20);
+
+localStorage.setItem(
+    "analysisNotes",
+    JSON.stringify(history)
+);
+
+loadHistory();
+return newId;
+}
+

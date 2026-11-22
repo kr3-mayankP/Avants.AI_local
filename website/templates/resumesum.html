@@ -1,0 +1,462 @@
+{% extends "base.html" %}
+{% block title %}Resume Summary{% endblock %}
+
+{% block head %}
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-GLFDS8ZT1H"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-GLFDS8ZT1H');
+</script>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/resumesum.css') }}">
+{% endblock %}
+
+{% block content %}
+{% include "_community_resume_count.html" %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12 text-center mb-4">
+            <h1 class="display-5 fw-bold text-primary">Resume Summary <span class="badge bg-secondary align-middle" style="font-size:0.9rem; font-weight:600; letter-spacing:0.03em; vertical-align:middle;">COMMUNITY EDITION</span></h1>
+            <p class="lead text-muted">Upload your resume to get an AI-powered summary of your qualifications</p>
+        </div>
+    </div>
+
+    {% if not current_user.is_authenticated %}
+    <div class="alert d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:12px;padding:14px 20px;">
+      <span style="color:#1e3a5f;font-size:0.95rem;"><i class="fas fa-lock me-2" style="color:#3b82f6;"></i><strong>Sign in to use this tool</strong> - it's free and takes less than a minute.</span>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('auth.login', next=request.path) }}" class="btn btn-primary btn-sm btn-rounded"><i class="fas fa-sign-in-alt me-1"></i>Sign In</a>
+        <a href="{{ url_for('auth.sign_up', next=request.path) }}" class="btn btn-outline-primary btn-sm btn-rounded"><i class="fas fa-user-plus me-1"></i>Sign Up Free</a>
+      </div>
+    </div>
+    {% endif %}
+
+    <div id="jobmatch-wrapper">
+        <div class="left-panel panel">
+            <div class="current-summary">
+                <h2>Current Resume Summary</h2>
+                <div id="summaryText">
+                    Upload a resume to generate an AI-powered summary.
+                </div>
+                <div class="text-end mt-3">
+                    <button id="downloadSummaryPdf" class="btn btn-outline-primary">
+                        <i class="fas fa-file-pdf"></i> Download Summary PDF
+                    </button>
+                </div>
+            </div>
+            <div class="upload-section">
+                <h2>Upload Resume</h2>
+                {% if current_user.is_authenticated %}
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <label for="file">Choose a file or drag and drop</label>
+                    <input id="file" name="file" type="file" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.bmp,.tiff" required />
+                    <button type="submit" id="uploadBtn">
+                        <i class="fas fa-upload"></i> Upload & Analyze
+                    </button>
+                </form>
+                {% else %}
+                <a href="{{ url_for('auth.login', next=request.path) }}" class="btn btn-primary" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px 24px;border-radius:8px;font-size:1rem;font-weight:500;text-decoration:none;">
+                    <i class="fas fa-sign-in-alt"></i> Sign In to Analyze
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="right-panel panel">
+            <h3>Previous Summaries</h3>
+            <div id="historyContainer">
+                <div class="empty-state" id="emptyHistory">
+                    <i class="fas fa-file-alt"></i>
+                    <p>No previous summaries yet</p>
+                </div>
+                <div class="resume-entry template" hidden>
+                    <button class="close-btn" title="Delete">&times;</button>
+                    <strong class="filename">Template</strong>
+                    <div class="summary">Sample summary text...</div>
+                    <button class="view-details">
+                        <i class="fas fa-eye"></i> View Details
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    loadHistoryFromStorage();
+    updateEmptyState();
+});
+
+function loadHistoryFromStorage() {
+    try {
+        const history = JSON.parse(localStorage.getItem("resumeHistory")) || [];
+        history.forEach((item) => {
+            if (item.filename && item.summary) {
+                addHistoryEntry(item.filename, item.summary, false);
+            }
+        });
+        updateEmptyState();
+    } catch (e) {
+        console.error("Error loading history:", e);
+        localStorage.removeItem("resumeHistory");
+    }
+}
+
+function updateEmptyState() {
+    const historyItems = document.querySelectorAll(".resume-entry:not(.template)");
+    const emptyState = document.getElementById("emptyHistory");
+    emptyState.style.display = historyItems.length > 0 ? "none" : "flex";
+}
+
+function addHistoryEntry(filename, summary, saveToStorage = true) {
+    const historyContainer = document.getElementById("historyContainer");
+    const template = document.querySelector(".resume-entry.template");
+    const emptyState = document.getElementById("emptyHistory");
+
+    const cleanName = filename.replace(/\.[^/.]+$/, "");
+    const preview = (summary || "").substring(0, 100) + (summary?.length > 100 ? "..." : "");
+
+    const newEntry = template.cloneNode(true);
+    newEntry.removeAttribute("hidden");
+    newEntry.style.display = "block";
+    newEntry.classList.remove("template");
+
+    const currentHistory = JSON.parse(localStorage.getItem("resumeHistory")) || [];
+    const existing = currentHistory.find(entry => entry.filename === filename);
+    const customName = existing?.customName || cleanName;
+  
+const filenameElem = newEntry.querySelector(".filename");
+filenameElem.textContent = customName;
+filenameElem.contentEditable = true;
+filenameElem.title = filename;
+filenameElem.style.cursor = "text";
+
+/* Save name while typing */
+filenameElem.addEventListener("input", () => {
+    const newName = filenameElem.textContent.trim();
+
+    if (newName.length === 0) {
+        filenameElem.textContent = cleanName;
+        return;
+    }
+
+    updateNameInStorage(filename, newName);
+});
+
+    newEntry.querySelector(".summary").textContent = preview;
+    newEntry.dataset.fullSummary = summary;
+
+    const closeBtn = newEntry.querySelector(".close-btn");
+    if (closeBtn) {
+        closeBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            newEntry.remove();
+            removeHistoryEntry(filename);
+            updateEmptyState();
+        });
+    }
+
+   newEntry.addEventListener("click", () => {
+    const currentName = filenameElem.textContent.trim();
+    showFullSummary(currentName, summary);
+});
+
+newEntry.querySelector(".view-details").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const currentName = filenameElem.textContent.trim();
+    showFullSummary(currentName, summary);
+});
+
+    if (emptyState.nextSibling) {
+        historyContainer.insertBefore(newEntry, emptyState.nextSibling);
+    } else {
+        historyContainer.appendChild(newEntry);
+    }
+
+    if (saveToStorage) {
+        saveHistoryToStorage(filename, summary);
+    }
+
+    updateEmptyState();
+}
+
+function saveHistoryToStorage(filename, summary) {
+    try {
+        const currentHistory = JSON.parse(localStorage.getItem("resumeHistory")) || [];
+        const newEntry = { filename, summary, timestamp: Date.now() };
+        const updatedHistory = [newEntry, ...currentHistory].slice(0, 10);
+        localStorage.setItem("resumeHistory", JSON.stringify(updatedHistory));
+    } catch (e) {
+        console.error("Error saving history:", e);
+    }
+}
+
+function updateNameInStorage(filename, newName) {
+    const history = JSON.parse(localStorage.getItem("resumeHistory")) || [];
+    const updated = history.map((entry) => {
+        if (entry.filename === filename) {
+            return { ...entry, customName: newName };
+        }
+        return entry;
+    });
+    localStorage.setItem("resumeHistory", JSON.stringify(updated));
+}
+
+function removeHistoryEntry(filename) {
+    const currentHistory = JSON.parse(localStorage.getItem("resumeHistory")) || [];
+
+    const updatedHistory = currentHistory.filter(
+        (entry) => entry.filename !== filename
+    );
+
+    localStorage.setItem("resumeHistory", JSON.stringify(updatedHistory));
+}
+
+function showFullSummary(title, content) {
+    const summaryElement = document.getElementById("summaryText");
+
+    summaryElement.innerHTML = `
+    <div style="line-height: 1.6; margin-top: 8px;">${content}</div>
+    <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px; margin-left: auto; width: fit-content;">
+        <select id="voiceSelect" style="padding: 6px 10px; font-size: 0.95rem; border-radius: 6px; border: 1px solid #ccc;">
+            <option value="en-US-Wavenet-D">Alex</option>
+            <option value="en-US-Wavenet-G">Rose</option>
+            <option value="en-US-Wavenet-F">Linda</option>
+            <option value="en-US-Wavenet-B">Tom</option>
+        </select>
+        <button id="playAudioBtn" title="Play Audio" style="background: none; border: none; color: var(--primary); font-size: 1.3rem; cursor: pointer; display: flex; align-items: center; padding: 4px;">
+            <i class="fas fa-volume-up"></i>
+        </button>
+    </div>
+    `;
+    summaryElement.scrollTo({ top: 0, behavior: "smooth" });
+
+    const playAudioBtn = document.getElementById("playAudioBtn");
+    
+    let isPlaying = false;
+    let isPaused = false;
+    let audio = null;
+
+    playAudioBtn.addEventListener("click", async () => {
+        try {
+            if (audio && isPlaying && !audio.paused) {
+                audio.pause();
+                isPaused = true;
+                isPlaying = false;
+                playAudioBtn.innerHTML = '<i class="fas fa-play"></i>';
+                return;
+            }
+
+            if (audio && isPaused) {
+                audio.play();
+                isPaused = false;
+                isPlaying = true;
+                playAudioBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                return;
+            }
+
+            playAudioBtn.disabled = true;
+            playAudioBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+            const selectedVoice = document.getElementById("voiceSelect").value || "en-US-Wavenet-D";
+
+            const response = await fetch("/speak", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ text: content, voice: selectedVoice }),
+            });
+
+            const result = await response.json();
+
+            if (result.audio_url) {
+                audio = new Audio(result.audio_url);
+                audio.play();
+                isPlaying = true;
+                isPaused = false;
+                playAudioBtn.disabled = false;
+                playAudioBtn.innerHTML = '<i class="fas fa-pause"></i>';
+
+                audio.addEventListener("ended", () => {
+                    isPlaying = false;
+                    playAudioBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+                });
+
+                audio.addEventListener("pause", () => {
+                    if (isPlaying) {
+                        isPlaying = false;
+                        playAudioBtn.innerHTML = '<i class="fas fa-play"></i>';
+                    }
+                });
+            } else {
+                playAudioBtn.disabled = false;
+                playAudioBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+                alert(result.error || "Audio not available. Please try again.");
+            }
+        } catch (error) {
+            playAudioBtn.disabled = false;
+            playAudioBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+            console.error("Failed to play audio:", error);
+        }
+    });
+}
+
+async function uploadWithRetry(formData, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch("/uploads", {
+    method: "POST",
+    body: formData
+});
+
+            if (response.status === 429) {
+                const retryAfter = parseInt(response.headers.get("Retry-After")) || Math.pow(2, i);
+                await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
+                continue;
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Server error: ${response.status}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            if (i === retries - 1) throw error;
+            await new Promise((resolve) => setTimeout(resolve, 1000 * Math.pow(2, i)));
+        }
+    }
+}
+
+document.getElementById("uploadForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const fileInput = document.getElementById("file");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const summaryText = document.getElementById("summaryText");
+    const file = fileInput.files[0];
+
+    if (!file) {
+        showError("Please select a file first");
+        return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+        showError("File size exceeds 5MB limit");
+        return;
+    }
+
+    setLoadingState(true);
+    summaryText.innerHTML = '<i class="fas fa-spinner"></i> Analyzing resume content...';
+
+    try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const result = await uploadWithRetry(formData);
+
+        showFullSummary("AI Summary", result.text_summary);
+        addHistoryEntry(file.name, result.text_summary);
+    } catch (error) {
+        console.error("Upload failed:", error);
+        handleUploadError(error);
+    } finally {
+        setLoadingState(false);
+    }
+});
+
+function setLoadingState(isLoading) {
+    const uploadBtn = document.getElementById("uploadBtn");
+    uploadBtn.disabled = isLoading;
+    uploadBtn.innerHTML = isLoading
+        ? '<i class="fas fa-spinner"></i> Processing...'
+        : '<i class="fas fa-upload"></i> Upload & Analyze';
+}
+
+function showError(message) {
+    document.getElementById("summaryText").innerHTML = `
+        <div class="error-message">${message}</div>
+    `;
+}
+
+function handleUploadError(error) {
+    let message = error.message || "Failed to process resume";
+
+    if (message.includes("429"))
+        message = "Server busy. Please wait and try again.";
+    if (message.includes("quota"))
+        message = "API quota exceeded. Check your OpenAI billing.";
+    if (message.includes("authentication"))
+        message = "API configuration error.";
+    if (error.message === "trial_expired") return;
+
+
+    document.getElementById("summaryText").innerHTML = `
+        <div class="error-message">
+            <strong>Error:</strong><br>
+            ${message}
+            <button id="retryBtn" class="retry-btn">
+                <i class="fas fa-redo"></i> Try Again
+            </button>
+        </div>
+    `;
+
+    document.getElementById("retryBtn").addEventListener("click", (e) => {
+        e.preventDefault();
+        document.getElementById("uploadForm").dispatchEvent(new Event("submit"));
+    });
+}
+document.getElementById("downloadSummaryPdf")?.addEventListener("click", async () => {
+    const summaryElement = document.getElementById("summaryText");
+    const text = summaryElement.innerText.trim();
+
+    if (!text || text.includes("Upload a resume")) {
+        alert("No summary available to export.");
+        return;
+    }
+
+    const btn = document.getElementById("downloadSummaryPdf");
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating PDF...';
+
+    let response;
+    try {
+        response = await fetch("/export/summary-pdf", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ summary: text })
+        });
+        if (!response.ok) throw new Error("Export failed");
+    } catch (e) {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+        alert("Couldn't generate the PDF. Please try again.");
+        return;
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "resume_summary.pdf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+});
+
+</script>
+
+
+{% endblock %}

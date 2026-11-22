@@ -1,0 +1,821 @@
+{% extends "base.html" %}
+{% block title %}Dashboard | {{ company.name }}{% endblock %}
+
+{% block container_class %}wide{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/employer_dashboard.css') }}?v=20261122-layout">
+{% endblock %}
+
+{% block content %}
+
+{#
+<!-- -------------------------------------------------------------------------------- -->
+<!-- OLD DASHBOARD CODE - kept here for review; current page uses the new dashboard below. -->
+<!-- -------------------------------------------------------------------------------- -->
+
+<!-- Overdue placement fees -->
+{% if overdue_fees %}
+<div class="overdue-fee-banner">
+    <div class="d-flex align-items-start gap-2">
+        <i class="fas fa-triangle-exclamation mt-1" style="color:var(--danger);"></i>
+        <div class="flex-grow-1">
+            <div class="fw-bold" style="color:var(--danger);">
+                {{ overdue_fees|length }} overdue placement fee{{ 's' if overdue_fees|length != 1 }}
+            </div>
+            <p class="mb-2" style="font-size:0.85rem;color:var(--text);">
+                Unpaid invoices accrue interest at 1.5% per month after 30 days. Continued non-payment may result in your account being suspended or your company profile being removed from Avants AI.
+            </p>
+            {% for item in overdue_fees %}
+            <div class="overdue-fee-row">
+                <span style="font-size:0.85rem;">
+                    <!-- #new change: show the candidate's combined name in overdue-fee notices. -->
+                    <strong>{{ item.candidate.full_name if item.candidate else 'Candidate' }}</strong> - {{ item.job.title }}
+                    <span class="text-muted">&middot; {{ item.days_overdue }} days overdue{% if item.fee_amount %} &middot; ${{ '{:,}'.format(item.fee_amount) }}{% endif %}</span>
+                </span>
+                <a href="{{ url_for('employer.applicants', job_id=item.job.id) }}" class="btn btn-sm btn-danger">Pay Now</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Company header -->
+<div class="company-header">
+    <div class="d-flex align-items-center gap-3">
+        <div class="company-logo">
+            {% if company.logo_filename %}
+                <img src="{{ url_for('static', filename='logos/' + company.logo_filename) }}?v={{ company.logo_version or 0 }}" alt="{{ company.name }} logo">
+            {% else %}
+                {{ company.name[0]|upper }}
+            {% endif %}
+        </div>
+        <div>
+            <h1 class="h4 fw-bold mb-0">{{ company.name }}</h1>
+            <div class="text-muted small">
+                {% if company.industry %}{{ company.industry }}{% endif %}
+                {% if company.industry and company.location %} &middot; {% endif %}
+                {% if company.location %}{{ company.location }}{% endif %}
+                {% if not company.industry and not company.location %}
+                    <a href="{{ url_for('employer.company_settings') }}" class="text-primary text-decoration-none">Complete your company profile</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('employer.company_page', company_id=company.id) }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-external-link me-1"></i> Public Page
+        </a>
+        <a href="{{ url_for('employer.talent_pool') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-users me-1"></i> Talent Pool
+        </a>
+        <a href="{{ url_for('employer.company_settings') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-gear me-1"></i> Settings
+        </a>
+        <a href="{{ url_for('employer.post_job') }}" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus me-1"></i> Post a Job
+        </a>
+    </div>
+</div>
+
+<!-- Stats strip -->
+<div class="stats-strip mb-4">
+    <div class="stats-strip-cell">
+        <div class="sv">{{ jobs|length }}</div>
+        <div class="sl">Total Jobs</div>
+    </div>
+    <div class="stats-strip-cell">
+        <div class="sv">{{ open_jobs }}</div>
+        <div class="sl">Open</div>
+    </div>
+    <div class="stats-strip-cell">
+        <div class="sv">{{ total_applicants }}</div>
+        <div class="sl">Applicants</div>
+    </div>
+    <div class="stats-strip-cell">
+        <div class="sv">{{ total_hired }}</div>
+        <div class="sl">Hired</div>
+    </div>
+    <div class="stats-strip-cell">
+        <div class="sv">{{ members|length + 1 }}</div>
+        <div class="sl">Team Members</div>
+    </div>
+</div>
+
+<!-- Job listings -->
+{% set live_jobs   = jobs | selectattr('status', 'equalto', 'open') | list %}
+{% set closed_jobs = jobs | selectattr('status', 'equalto', 'closed') | list %}
+{% set draft_jobs  = jobs | selectattr('status', 'equalto', 'draft') | list %}
+
+{% macro job_tile(job) %}
+<div class="job-tile">
+    <div class="d-flex justify-content-between align-items-start gap-2">
+        <span class="badge-status {{ job.status }}">{{ job.status|capitalize }}</span>
+        <span class="badge-status applied" style="flex-shrink:0;">{{ job.category }}</span>
+    </div>
+    <div>
+        <p class="job-tile-title">{{ job.title }}</p>
+        <p class="job-tile-meta mb-0">{{ job.location or "Remote" }} &middot; {{ job.employment_type or "Full-time" }}</p>
+        {% set sal = job|salary_range %}
+        {% if sal %}
+        <p class="job-tile-meta mb-0" style="color:var(--success); font-weight:600;">
+            <i class="fas fa-dollar-sign" style="font-size:0.7rem;"></i> {{ sal }}
+        </p>
+        {% endif %}
+    </div>
+    <div class="d-flex gap-3 align-items-center text-muted" style="font-size:0.78rem;">
+        <span><i class="fas fa-users me-1"></i>{{ applicant_counts.get(job.id, 0) }} applicant{{ 's' if applicant_counts.get(job.id, 0) != 1 }}</span>
+        {% set h = hired_counts.get(job.id, 0) %}
+        {% if h > 0 %}
+        <span style="color:var(--success); font-weight:600;"><i class="fas fa-trophy me-1"></i>{{ h }} hired</span>
+        {% endif %}
+    </div>
+    <div class="job-tile-actions">
+        <a href="{{ url_for('employer.applicants', job_id=job.id) }}" class="btn btn-outline-primary btn-sm flex-grow-1">
+            View Applicants
+        </a>
+        <a href="{{ url_for('employer.edit_job', job_id=job.id) }}" class="btn btn-outline-secondary btn-sm" title="Edit job">
+            <i class="fas fa-pen"></i>
+        </a>
+        <form method="POST" action="{{ url_for('employer.toggle_job_status', job_id=job.id) }}">
+            {% if job.status == 'open' %}
+            <button type="submit" class="btn btn-outline-secondary btn-sm" title="Close job - stops new applications">
+                <i class="fas fa-lock"></i>
+            </button>
+            {% else %}
+            <button type="submit" class="btn btn-outline-success btn-sm" title="Reopen job">
+                <i class="fas fa-lock-open"></i>
+            </button>
+            {% endif %}
+        </form>
+        <form method="POST" action="{{ url_for('employer.delete_job', job_id=job.id) }}"
+              data-confirm-title="Delete this job posting?"
+              data-confirm-message="{% if applicant_counts.get(job.id, 0) > 0 %}This job has applicants, so it can't be deleted - close it instead to stop new applications while keeping candidate history.{% else %}This permanently removes the job posting. This can't be undone.{% endif %}"
+              data-confirm-btn="Yes, delete">
+            <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete job">
+                <i class="fas fa-trash"></i>
+            </button>
+        </form>
+    </div>
+</div>
+{% endmacro %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="h5 fw-bold mb-0">Job Postings</h2>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('employer.deleted_jobs') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-clock-rotate-left me-1"></i> Deleted Jobs
+        </a>
+        <a href="{{ url_for('employer.post_job') }}" class="btn btn-sm btn-primary">
+            <i class="fas fa-plus me-1"></i> New Job
+        </a>
+    </div>
+</div>
+
+{% if not jobs %}
+<div class="empty-state">
+    <div class="empty-icon"><i class="fas fa-briefcase"></i></div>
+    <h4 class="fw-bold mb-2">No jobs posted yet</h4>
+    <p class="text-muted mb-4">Post your first job and let AI screen candidates for you.</p>
+    <a href="{{ url_for('employer.post_job') }}" class="btn btn-primary btn-rounded">Post your first job</a>
+</div>
+{% else %}
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="jobTabs" role="tablist" style="border-bottom: 2px solid var(--border);">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-live" data-bs-toggle="tab" data-bs-target="#pane-live" type="button" role="tab">
+            Live
+            {% if live_jobs %}<span class="badge bg-primary ms-1" style="font-size:0.65rem;">{{ live_jobs|length }}</span>{% endif %}
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-closed" data-bs-toggle="tab" data-bs-target="#pane-closed" type="button" role="tab">
+            Closed
+            {% if closed_jobs %}<span class="badge ms-1" style="font-size:0.65rem;background:var(--text-muted);color:#fff;">{{ closed_jobs|length }}</span>{% endif %}
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-drafts" data-bs-toggle="tab" data-bs-target="#pane-drafts" type="button" role="tab">
+            Drafts
+            {% if draft_jobs %}<span class="badge ms-1" style="font-size:0.65rem;background:var(--warning);color:#fff;">{{ draft_jobs|length }}</span>{% endif %}
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- Live jobs pane (open only - closed jobs move to their own tab) -->
+    <div class="tab-pane fade show active" id="pane-live" role="tabpanel">
+        {% if not live_jobs %}
+        <div class="empty-state" style="padding:32px;">
+            <p class="text-muted mb-2">No live jobs yet.</p>
+            <a href="{{ url_for('employer.post_job') }}" class="btn btn-sm btn-primary">Post a job</a>
+        </div>
+        {% else %}
+        <div class="job-grid">
+            {% for job in live_jobs %}{{ job_tile(job) }}{% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Closed jobs pane -->
+    <div class="tab-pane fade" id="pane-closed" role="tabpanel">
+        {% if not closed_jobs %}
+        <div class="empty-state" style="padding:32px;">
+            <p class="text-muted mb-0">No closed jobs.</p>
+        </div>
+        {% else %}
+        <div class="job-grid">
+            {% for job in closed_jobs %}{{ job_tile(job) }}{% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Drafts pane -->
+    <div class="tab-pane fade" id="pane-drafts" role="tabpanel">
+        {% if not draft_jobs %}
+        <div class="empty-state" style="padding:32px;">
+            <p class="text-muted mb-0">No drafts saved.</p>
+        </div>
+        {% else %}
+        <div class="job-grid">
+            {% for job in draft_jobs %}
+            <div class="job-tile">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <span class="badge-status draft">Draft</span>
+                    <span class="badge-status applied" style="flex-shrink:0;">{{ job.category }}</span>
+                </div>
+                <div>
+                    <p class="job-tile-title">{{ job.title }}</p>
+                    <p class="job-tile-meta mb-0">{{ job.location or "Remote" }} &middot; {{ job.employment_type or "Full-time" }}</p>
+                    {% set sal = job|salary_range %}
+                    {% if sal %}
+                    <p class="job-tile-meta mb-0" style="color:var(--success); font-weight:600;">
+                        <i class="fas fa-dollar-sign" style="font-size:0.7rem;"></i> {{ sal }}
+                    </p>
+                    {% endif %}
+                </div>
+                <div class="job-tile-actions">
+                    <form method="POST" action="{{ url_for('employer.publish_job', job_id=job.id) }}" class="flex-grow-1">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">
+                            <i class="fas fa-rocket me-1"></i> Publish
+                        </button>
+                    </form>
+                    <a href="{{ url_for('employer.edit_job', job_id=job.id) }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-pen"></i>
+                    </a>
+                    <form method="POST" action="{{ url_for('employer.delete_job', job_id=job.id) }}"
+                          data-confirm-title="Delete this draft?"
+                          data-confirm-message="This permanently removes the draft. This can't be undone."
+                          data-confirm-btn="Yes, delete">
+                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Delete draft">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endif %}
+
+<!-- -------------------------------------------------------------------------------- -->
+<!-- END OLD DASHBOARD CODE -->
+<!-- -------------------------------------------------------------------------------- -->
+#}
+
+<!-- -------------------------------------------------------------------------------- -->
+<!-- Code: Recruiter dashboard layout -->
+<!-- -------------------------------------------------------------------------------- -->
+<div class="recruiter-dashboard-layout">
+    <aside class="recruiter-sidebar">
+        <a class="recruiter-brand" href="{{ url_for('employer.dashboard') }}">
+            <img src="{{ url_for('static', filename='Avants.png') }}" alt="">
+            <span>Avants AI</span>
+        </a>
+
+        <nav class="recruiter-sidebar-nav" aria-label="Recruiter dashboard">
+            <a href="{{ url_for('employer.dashboard') }}" class="recruiter-nav-link active">
+                <i class="fas fa-house"></i><span>Dashboard</span>
+            </a>
+            <a href="{{ url_for('employer.talent_pool') }}" class="recruiter-nav-link">
+                <i class="fas fa-wand-magic-sparkles"></i><span>AI Intelligence</span>
+            </a>
+            <a href="{{ url_for('employer.manage_jobs') }}" class="recruiter-nav-link">
+                <i class="fas fa-briefcase"></i><span>Jobs</span>
+                <span class="recruiter-nav-count">{{ open_jobs }}</span>
+            </a>
+            <a href="{{ url_for('employer.talent_pool') }}" class="recruiter-nav-link">
+                <i class="fas fa-users"></i><span>Candidates</span>
+            </a>
+            <a href="{{ url_for('employer.employer_meetings') }}" class="recruiter-nav-link">
+                <i class="fas fa-calendar-check"></i><span>Interviews</span>
+            </a>
+            <a href="#recent-activity" class="recruiter-nav-link">
+                <i class="fas fa-message"></i><span>Messages</span>
+                {% if unread_employer_messages %}
+                <span class="recruiter-nav-count danger">{{ unread_employer_messages }}</span>
+                {% endif %}
+            </a>
+            <a href="{{ url_for('employer.analytics') }}" class="recruiter-nav-link">
+                <i class="fas fa-chart-line"></i><span>Analytics</span>
+            </a>
+            <a href="#notifications" class="recruiter-nav-link">
+                <i class="fas fa-bell"></i><span>Notifications</span>
+                {% if notification_badge_count %}
+                <span class="recruiter-nav-count danger">{{ notification_badge_count }}</span>
+                {% endif %}
+            </a>
+            <a href="{{ url_for('employer.company_settings') }}" class="recruiter-nav-link">
+                <i class="fas fa-building"></i><span>Company</span>
+            </a>
+            <a href="{{ url_for('employer.company_settings') }}" class="recruiter-nav-link">
+                <i class="fas fa-gear"></i><span>Settings</span>
+            </a>
+        </nav>
+
+        <a class="recruiter-sidebar-company" href="{{ url_for('employer.company_settings') }}">
+            <span class="company-avatar">
+                {% if company.logo_filename %}
+                <img src="{{ url_for('static', filename='logos/' + company.logo_filename) }}?v={{ company.logo_version or 0 }}" alt="">
+                {% else %}
+                {{ company.name[0]|upper }}
+                {% endif %}
+            </span>
+            <span class="company-label">
+                <strong>{{ company.name }}</strong>
+                <small>Company settings</small>
+            </span>
+            <i class="fas fa-ellipsis"></i>
+        </a>
+    </aside>
+
+    <main class="recruiter-dashboard-main">
+        <!-- ------------------------------------------------------------------------ -->
+        <!-- Code: Dashboard top bar -->
+        <!-- ------------------------------------------------------------------------ -->
+        <header class="recruiter-topbar">
+            <div class="recruiter-topbar-links">
+                <a class="topbar-active" href="{{ url_for('employer.talent_pool') }}">Employer matches</a>
+                <a href="{{ url_for('employer.manage_jobs') }}">Jobs</a>
+                <a href="#recent-activity">Messages{% if unread_employer_messages %} <span class="topbar-badge">{{ unread_employer_messages }}</span>{% endif %}</a>
+            </div>
+            <label class="dashboard-search">
+                <i class="fas fa-magnifying-glass"></i>
+                <input id="dashboardSearch" type="search" placeholder="Search jobs and candidates" aria-label="Search jobs and candidates">
+                <kbd>/</kbd>
+            </label>
+            <div class="topbar-account">
+                <a class="notification-dot" href="#notifications" aria-label="{{ notification_badge_count }} notifications">
+                    <i class="fas fa-bell"></i>
+                    {% if notification_badge_count %}<span class="topbar-notification-count">{{ notification_badge_count }}</span>{% endif %}
+                </a>
+                <span class="account-initial">{{ (current_user.first_name or company.name)[0]|upper }}</span>
+                <span class="account-name">{{ current_user.full_name or 'Recruiter' }}</span>
+                <i class="fas fa-chevron-down"></i>
+            </div>
+        </header>
+
+        <!-- ------------------------------------------------------------------------ -->
+        <!-- Code: Welcome banner -->
+        <!-- ------------------------------------------------------------------------ -->
+        <section class="recruiter-welcome">
+            <div class="welcome-copy">
+                <p class="welcome-eyebrow">{{ today_label }} <span>·</span> {{ company.name }}</p>
+                <h1>Welcome back, {{ current_user.first_name or 'Recruiter' }} <span aria-hidden="true">👋</span></h1>
+                <p>Here’s what’s happening with your hiring today.</p>
+            </div>
+            <div class="welcome-art" aria-hidden="true">
+                <div class="welcome-art-card"><i class="fas fa-chart-simple"></i><span></span><span></span><span></span></div>
+                <div class="welcome-art-orbit"><i class="fas fa-wand-magic-sparkles"></i></div>
+                <i class="fas fa-star welcome-star one"></i>
+                <i class="fas fa-star welcome-star two"></i>
+            </div>
+        </section>
+
+        <!-- ------------------------------------------------------------------------ -->
+        <!-- Code: Live KPI cards -->
+        <!-- ------------------------------------------------------------------------ -->
+        <section class="recruiter-kpis" aria-label="Hiring statistics">
+            <a class="recruiter-kpi" href="{{ url_for('employer.manage_jobs') }}">
+                <span class="kpi-icon purple"><i class="fas fa-briefcase"></i></span>
+                <span class="kpi-label">Active Jobs</span>
+                <strong>{{ open_jobs }}</strong>
+                <small>{{ jobs|length }} total job{{ 's' if jobs|length != 1 }}</small>
+            </a>
+            <a class="recruiter-kpi" href="{{ url_for('employer.manage_jobs') }}">
+                <span class="kpi-icon blue"><i class="fas fa-users"></i></span>
+                <span class="kpi-label">Applications</span>
+                <strong>{{ total_applicants }}</strong>
+                <small>{{ new_applications }} in the last 7 days</small>
+            </a>
+            <a class="recruiter-kpi" href="{{ url_for('employer.talent_pool') }}">
+                <span class="kpi-icon violet"><i class="fas fa-star"></i></span>
+                <span class="kpi-label">AI Shortlisted</span>
+                <strong>{{ shortlist_count }}</strong>
+                <small>Moving forward</small>
+            </a>
+            <a class="recruiter-kpi" href="{{ url_for('employer.employer_meetings') }}">
+                <span class="kpi-icon cyan"><i class="fas fa-calendar-check"></i></span>
+                <span class="kpi-label">Interviews</span>
+                <strong>{{ interview_count }}</strong>
+                <small>{{ scheduled_interviews }} meeting room{{ 's' if scheduled_interviews != 1 }}</small>
+            </a>
+            <a class="recruiter-kpi" href="{{ url_for('employer.analytics') }}">
+                <span class="kpi-icon green"><i class="fas fa-trophy"></i></span>
+                <span class="kpi-label">Hires</span>
+                <strong>{{ total_hired }}</strong>
+                <small>{{ members|length + 1 }} team member{{ 's' if members|length != 0 }}</small>
+            </a>
+        </section>
+
+        <!-- ------------------------------------------------------------------------ -->
+        <!-- Code: Quick actions -->
+        <!-- ------------------------------------------------------------------------ -->
+        <section class="dashboard-section quick-actions-section">
+            <div class="section-heading">
+                <div><h2>Quick Actions</h2><p>Get your next hiring task done</p></div>
+                <div class="quick-action-links">
+                    <a href="{{ url_for('employer.company_settings') }}">Company settings <i class="fas fa-sliders"></i></a>
+                    <a href="{{ url_for('employer.deleted_jobs') }}">Deleted jobs</a>
+                    <a href="{{ url_for('employer.company_page', company_id=company.id) }}" target="_blank" rel="noopener">Public page</a>
+                </div>
+            </div>
+            <div class="quick-actions">
+                <a href="{{ url_for('employer.post_job') }}" class="quick-action">
+                    <span class="quick-action-icon"><i class="fas fa-plus"></i></span>
+                    <span><strong>Post a New Job</strong><small>Create a job opening</small></span>
+                    <i class="fas fa-arrow-right quick-action-arrow"></i>
+                </a>
+                <a href="{{ url_for('employer.talent_pool') }}" class="quick-action">
+                    <span class="quick-action-icon"><i class="fas fa-user-group"></i></span>
+                    <span><strong>Find Candidates</strong><small>Search the talent pool</small></span>
+                    <i class="fas fa-arrow-right quick-action-arrow"></i>
+                </a>
+                <a href="{{ url_for('employer.employer_meetings') }}" class="quick-action">
+                    <span class="quick-action-icon"><i class="fas fa-calendar-plus"></i></span>
+                    <span><strong>Schedule Interview</strong><small>Review your meetings</small></span>
+                    <i class="fas fa-arrow-right quick-action-arrow"></i>
+                </a>
+                <a href="#ai-assistant" class="quick-action">
+                    <span class="quick-action-icon"><i class="fas fa-wand-magic-sparkles"></i></span>
+                    <span><strong>Generate with AI</strong><small>Ask your hiring assistant</small></span>
+                    <i class="fas fa-arrow-right quick-action-arrow"></i>
+                </a>
+            </div>
+        </section>
+
+        <!-- ------------------------------------------------------------------------ -->
+        <!-- Code: Hiring overview and active jobs -->
+        <!-- ------------------------------------------------------------------------ -->
+        <div class="dashboard-main-grid">
+            <section class="dashboard-panel hiring-overview">
+                <div class="section-heading panel-heading">
+                    <div><h2><i class="fas fa-chart-line section-icon"></i> Hiring Overview</h2><p>Applications received in the last 30 days</p></div>
+                    <a class="panel-link" href="{{ url_for('employer.analytics') }}">View analytics <i class="fas fa-arrow-up-right-from-square"></i></a>
+                </div>
+                <div class="overview-summary">
+                    <div><strong>{{ total_applicants }}</strong><span>Total applications</span></div>
+                    <div><strong>{{ interview_count }}</strong><span>Interviewed</span></div>
+                    <div><strong>{{ total_hired }}</strong><span>Hired</span></div>
+                </div>
+                <div class="hiring-chart" role="img" aria-label="Applications received by six-day period during the last 30 days">
+                    {% for point in hiring_chart %}
+                    <div class="chart-column" title="{{ point.count }} application{{ 's' if point.count != 1 }}">
+                        <span class="chart-count">{{ point.count }}</span>
+                        <span class="chart-bar" style="--bar-height: {{ point.height }}%"></span>
+                        <span class="chart-label">{{ point.label }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="dashboard-panel active-jobs-panel" id="active-jobs">
+                <div class="section-heading panel-heading">
+                    <div><h2><i class="fas fa-briefcase section-icon"></i> Active Jobs <span class="heading-count">{{ open_jobs }}</span></h2><p>Open roles and applicant counts</p></div>
+                    <a class="panel-link" href="{{ url_for('employer.post_job') }}">Post job <i class="fas fa-arrow-right"></i></a>
+                </div>
+                {% if active_jobs %}
+                <div class="active-jobs-list">
+                    {% for job in active_jobs %}
+                    <article class="active-job-row" data-search="{{ job.title|lower }} {{ job.category|lower }}">
+                        <span class="job-row-icon"><i class="fas fa-briefcase"></i></span>
+                        <div class="active-job-info">
+                            <a href="{{ url_for('employer.applicants', job_id=job.id) }}"><strong>{{ job.title }}</strong></a>
+                            <small>{{ job.location or 'Remote' }} · {{ applicant_counts.get(job.id, 0) }} applicant{{ 's' if applicant_counts.get(job.id, 0) != 1 }}</small>
+                        </div>
+                        <span class="job-live-status">Active</span>
+                        <details class="job-actions-menu">
+                            <summary aria-label="Actions for {{ job.title }}"><i class="fas fa-ellipsis"></i></summary>
+                            <div class="job-actions-popover">
+                                <a href="{{ url_for('employer.edit_job', job_id=job.id) }}">Edit job</a>
+                                <form method="POST" action="{{ url_for('employer.toggle_job_status', job_id=job.id) }}">
+                                    <button type="submit">Close job</button>
+                                </form>
+                                <form method="POST" action="{{ url_for('employer.delete_job', job_id=job.id) }}"
+                                      data-confirm-title="Delete this job?"
+                                      data-confirm-message="{% if applicant_counts.get(job.id, 0) > 0 %}This job has applicants and cannot be deleted. Close it instead.{% else %}This permanently removes the job posting.{% endif %}"
+                                      data-confirm-btn="Yes, delete">
+                                    <button type="submit" class="danger-action">Delete job</button>
+                                </form>
+                            </div>
+                        </details>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="dashboard-empty">
+                    <i class="fas fa-briefcase"></i>
+                    <p>No active jobs yet.</p>
+                    <a href="{{ url_for('employer.post_job') }}" class="btn btn-sm btn-primary">Post your first job</a>
+                </div>
+                {% endif %}
+            </section>
+        </div>
+
+        <!-- ------------------------------------------------------------------------ -->
+        <!-- Code: AI insights and AI hiring assistant -->
+        <!-- ------------------------------------------------------------------------ -->
+        <div class="dashboard-bottom-grid">
+            <section class="dashboard-panel insight-panel">
+                <div class="section-heading panel-heading">
+                    <div><h2><i class="fas fa-wand-magic-sparkles section-icon"></i> Hiring Insights</h2><p>Based on your current hiring data</p></div>
+                    <span class="insight-source">Live data</span>
+                </div>
+                <div class="insight-list">
+                    {% for insight in ai_insights %}
+                    <a href="{{ insight.url }}" class="insight-row">
+                        <span class="insight-icon"><i class="fas {{ insight.icon }}"></i></span>
+                        <span><strong>{{ insight.title }}</strong><small>{{ insight.detail }}</small></span>
+                        <i class="fas fa-chevron-right insight-arrow"></i>
+                    </a>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="dashboard-panel assistant-panel" id="ai-assistant">
+                <div class="section-heading panel-heading">
+                    <div><h2><i class="fas fa-robot section-icon"></i> AI Hiring Assistant</h2><p>Ask about your hiring pipeline</p></div>
+                    <span class="assistant-beta">BETA</span>
+                </div>
+                <div class="assistant-chat" id="assistantChat" aria-live="polite">
+                    <div class="assistant-message assistant-response">
+                        <span class="assistant-avatar"><i class="fas fa-wand-magic-sparkles"></i></span>
+                        <p>Hi! I can help you review your open roles and hiring activity. What would you like to know?</p>
+                    </div>
+                </div>
+                <p class="assistant-try-label">Try asking:</p>
+                <div class="assistant-prompts">
+                    <button type="button" class="assistant-prompt" data-prompt="How can I improve my hiring pipeline?">How can I improve my hiring pipeline?</button>
+                    <button type="button" class="assistant-prompt" data-prompt="Which of my open jobs needs attention?">Which open jobs need attention?</button>
+                    <button type="button" class="assistant-prompt" data-prompt="What should I review before interviewing a candidate?">What should I review before an interview?</button>
+                </div>
+                <form class="assistant-form" id="assistantForm" action="{{ url_for('employer.dashboard_assistant') }}">
+                    <label class="visually-hidden" for="assistantQuestion">Ask the hiring assistant</label>
+                    <input id="assistantQuestion" name="message" maxlength="1000" placeholder="Ask about hiring..." autocomplete="off">
+                    <button type="submit" aria-label="Send question"><i class="fas fa-arrow-up"></i></button>
+                </form>
+                <p class="assistant-error" id="assistantError" role="alert"></p>
+            </section>
+
+            <!-- -------------------------------------------------------------------- -->
+            <!-- Code: Top matching candidates -->
+            <!-- -------------------------------------------------------------------- -->
+            <section class="dashboard-panel candidates-panel">
+                <div class="section-heading panel-heading">
+                    <div><h2><i class="fas fa-star section-icon"></i> Top Matching Candidates</h2><p>Highest resume match scores in your active pipeline</p></div>
+                    <a class="panel-link" href="{{ url_for('employer.talent_pool') }}">View all <i class="fas fa-arrow-right"></i></a>
+                </div>
+                {% if dashboard_candidates %}
+                <div class="candidate-table-wrap">
+                    <table class="candidate-table">
+                        <thead><tr><th>Candidate</th><th>Match</th><th>Experience</th><th>Skills</th><th></th></tr></thead>
+                        <tbody>
+                            {% for candidate in dashboard_candidates %}
+                            <tr data-search="{{ candidate.name|lower }} {{ candidate.headline|default('', true)|lower }} {{ candidate.skills|join(' ')|lower }}">
+                                <td><a href="{{ candidate.url }}" class="candidate-name">{{ candidate.name }}</a><small>{{ candidate.job_title }}</small></td>
+                                <td><span class="match-score">{{ candidate.score }}%</span></td>
+                                <td>{{ candidate.experience or '—' }}</td>
+                                <td><span class="candidate-skills">{{ candidate.skills|join(', ') if candidate.skills else (candidate.headline or '—') }}</span></td>
+                                <td><a class="candidate-open" href="{{ candidate.url }}" aria-label="Review candidates for {{ candidate.job_title }}"><i class="fas fa-arrow-right"></i></a></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="dashboard-empty">
+                    <i class="fas fa-user-group"></i>
+                    <p>Candidate matches will appear after applications arrive.</p>
+                    <a href="{{ url_for('employer.talent_pool') }}" class="btn btn-sm btn-outline-primary">Browse talent pool</a>
+                </div>
+                {% endif %}
+            </section>
+
+            <!-- -------------------------------------------------------------------- -->
+            <!-- Code: Recent activity -->
+            <!-- -------------------------------------------------------------------- -->
+            <section class="dashboard-panel activity-panel" id="recent-activity">
+                <div class="section-heading panel-heading">
+                    <div><h2><i class="fas fa-clock-rotate-left section-icon"></i> Recent Activity</h2><p>Latest updates from your hiring pipeline</p></div>
+                    <a class="panel-link" href="{{ url_for('employer.analytics') }}">View analytics <i class="fas fa-arrow-right"></i></a>
+                </div>
+                {% if recent_activity %}
+                <div class="activity-list">
+                    {% for activity in recent_activity %}
+                    <a class="activity-row" href="{{ activity.url }}">
+                        <span class="activity-icon {{ activity.kind }}"><i class="fas {{ activity.icon }}"></i></span>
+                        <span class="activity-copy"><strong>{{ activity.title }}</strong><small>{{ activity.detail }}</small></span>
+                        <time>{{ activity.created_at|time_ago if activity.created_at else '' }}</time>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="dashboard-empty">
+                    <i class="fas fa-inbox"></i>
+                    <p>Your new applications and interviews will show up here.</p>
+                </div>
+                {% endif %}
+            </section>
+        </div>
+
+        <!-- ------------------------------------------------------------------------ -->
+        <!-- Code: Closed jobs and drafts, keeping existing job management actions -->
+        <!-- ------------------------------------------------------------------------ -->
+        {% set closed_jobs = jobs|selectattr('status', 'equalto', 'closed')|list %}
+        {% set draft_jobs = jobs|selectattr('status', 'equalto', 'draft')|list %}
+        {% if closed_jobs or draft_jobs %}
+        <section class="dashboard-panel archived-jobs-panel">
+            <details>
+                <summary>Closed jobs and drafts <span>{{ closed_jobs|length + draft_jobs|length }}</span></summary>
+                <div class="archived-jobs-list">
+                    {% for job in closed_jobs %}
+                    <div class="archived-job-row">
+                        <span><strong>{{ job.title }}</strong><small>Closed · {{ applicant_counts.get(job.id, 0) }} applicants</small></span>
+                        <a href="{{ url_for('employer.applicants', job_id=job.id) }}" class="btn btn-sm btn-outline-primary">Applicants</a>
+                        <a href="{{ url_for('employer.edit_job', job_id=job.id) }}" class="btn btn-sm btn-outline-secondary" aria-label="Edit {{ job.title }}"><i class="fas fa-pen"></i></a>
+                        <form method="POST" action="{{ url_for('employer.toggle_job_status', job_id=job.id) }}">
+                            <button type="submit" class="btn btn-sm btn-outline-success">Reopen</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('employer.delete_job', job_id=job.id) }}"
+                              data-confirm-title="Delete this job?"
+                              data-confirm-message="{% if applicant_counts.get(job.id, 0) > 0 %}This job has applicants and cannot be deleted. Close it instead.{% else %}This permanently removes the job posting.{% endif %}"
+                              data-confirm-btn="Yes, delete">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="Delete {{ job.title }}"><i class="fas fa-trash"></i></button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                    {% for job in draft_jobs %}
+                    <div class="archived-job-row">
+                        <span><strong>{{ job.title }}</strong><small>Draft · not published</small></span>
+                        <form method="POST" action="{{ url_for('employer.publish_job', job_id=job.id) }}">
+                            <button type="submit" class="btn btn-sm btn-primary">Publish</button>
+                        </form>
+                        <a href="{{ url_for('employer.edit_job', job_id=job.id) }}" class="btn btn-sm btn-outline-secondary" aria-label="Edit {{ job.title }}"><i class="fas fa-pen"></i></a>
+                        <form method="POST" action="{{ url_for('employer.delete_job', job_id=job.id) }}"
+                              data-confirm-title="Delete this draft?"
+                              data-confirm-message="This permanently removes the draft."
+                              data-confirm-btn="Yes, delete">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="Delete {{ job.title }}"><i class="fas fa-trash"></i></button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+            </details>
+        </section>
+        {% endif %}
+
+        <!-- ------------------------------------------------------------------------ -->
+        <!-- Code: Existing overdue fee notices -->
+        <!-- ------------------------------------------------------------------------ -->
+        <section id="notifications" class="dashboard-notifications">
+        <div class="dashboard-panel notification-panel">
+            <div class="section-heading panel-heading">
+                <div><h2><i class="fas fa-bell section-icon"></i> Notifications</h2><p>Your latest account and hiring updates</p></div>
+                {% if notification_badge_count %}<span class="notification-count-label">{{ notification_badge_count }} new</span>{% endif %}
+            </div>
+            {% if dashboard_notifications %}
+            <div class="notification-list">
+                {% for notification in dashboard_notifications %}
+                <a class="notification-row {% if not notification.read %}unread{% endif %}"
+                   href="{{ notification.link or url_for('employer.dashboard') }}">
+                    <span class="notification-row-icon"><i class="fas fa-bell"></i></span>
+                    <span>{{ notification.message }}</span>
+                    <time>{{ notification.created_at|time_ago if notification.created_at else '' }}</time>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="dashboard-empty"><i class="fas fa-circle-check"></i><p>No new notifications.</p></div>
+            {% endif %}
+        </div>
+        {% if overdue_fees %}
+        <div class="overdue-fee-banner">
+            <div class="d-flex align-items-start gap-2">
+                <i class="fas fa-triangle-exclamation mt-1" style="color:var(--danger);"></i>
+                <div class="flex-grow-1">
+                    <div class="fw-bold" style="color:var(--danger);">{{ overdue_fees|length }} overdue placement fee{{ 's' if overdue_fees|length != 1 }}</div>
+                    <p class="mb-2" style="font-size:0.85rem;color:var(--text);">Please resolve overdue placement fees to keep your account in good standing.</p>
+                    {% for item in overdue_fees %}
+                    <div class="overdue-fee-row">
+                        <span style="font-size:0.85rem;"><strong>{{ item.candidate.full_name if item.candidate else 'Candidate' }}</strong> · {{ item.job.title }} <span class="text-muted">· {{ item.days_overdue }} days overdue{% if item.fee_amount %} · ${{ '{:,}'.format(item.fee_amount) }}{% endif %}</span></span>
+                        <a href="{{ url_for('employer.applicants', job_id=item.job.id) }}" class="btn btn-sm btn-danger">Pay Now</a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        </section>
+    </main>
+</div>
+
+<!-- ------------------------------------------------------------------------------ -->
+<!-- Code: Dashboard search and AI assistant interactions -->
+<!-- ------------------------------------------------------------------------------ -->
+<script>
+(() => {
+    const searchInput = document.getElementById("dashboardSearch");
+    const assistantForm = document.getElementById("assistantForm");
+    const assistantQuestion = document.getElementById("assistantQuestion");
+    const assistantChat = document.getElementById("assistantChat");
+    const assistantError = document.getElementById("assistantError");
+
+    if (searchInput) {
+        searchInput.addEventListener("input", () => {
+            const query = searchInput.value.trim().toLowerCase();
+            document.querySelectorAll("[data-search]").forEach((item) => {
+                item.hidden = query !== "" && !item.dataset.search.includes(query);
+            });
+        });
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "/" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) {
+                event.preventDefault();
+                searchInput.focus();
+            }
+        });
+    }
+
+    document.querySelectorAll(".assistant-prompt").forEach((button) => {
+        button.addEventListener("click", () => {
+            assistantQuestion.value = button.dataset.prompt;
+            assistantForm.requestSubmit();
+        });
+    });
+
+    function addAssistantMessage(text, isReply) {
+        const message = document.createElement("div");
+        message.className = isReply ? "assistant-message assistant-response" : "assistant-message recruiter-question";
+        const paragraph = document.createElement("p");
+        paragraph.textContent = text;
+        if (isReply) {
+            const avatar = document.createElement("span");
+            avatar.className = "assistant-avatar";
+            avatar.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>';
+            message.appendChild(avatar);
+        }
+        message.appendChild(paragraph);
+        assistantChat.appendChild(message);
+        assistantChat.scrollTop = assistantChat.scrollHeight;
+    }
+
+    assistantForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const question = assistantQuestion.value.trim();
+        if (!question) {
+            assistantQuestion.focus();
+            return;
+        }
+
+        assistantError.textContent = "";
+        addAssistantMessage(question, false);
+        assistantQuestion.value = "";
+        const submitButton = assistantForm.querySelector("button");
+        submitButton.disabled = true;
+
+        try {
+            const response = await fetch(assistantForm.action, {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({message: question})
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.error || "The assistant could not answer right now.");
+            }
+            addAssistantMessage(result.reply, true);
+        } catch (error) {
+            assistantError.textContent = error.message || "The assistant could not answer right now.";
+        } finally {
+            submitButton.disabled = false;
+            assistantQuestion.focus();
+        }
+    });
+})();
+</script>
+
+{% endblock %}

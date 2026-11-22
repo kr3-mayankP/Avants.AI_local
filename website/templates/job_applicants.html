@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Applicants for {{ job.title }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/job_applicants.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <a href="{{ url_for('employer.dashboard') }}" class="text-decoration-none text-muted small">
+        <i class="fas fa-arrow-left me-1"></i> Back to dashboard
+    </a>
+    <div class="d-flex justify-content-between align-items-start mt-2 flex-wrap gap-2">
+        <div>
+            <h1 class="h3 fw-bold mb-1">{{ job.title }}</h1>
+            <p class="text-muted small mb-0">
+                <span class="badge-status {{ job.status }}">{{ job.status|capitalize }}</span>
+                <span class="ms-2">{{ applications|length }} applicant{{ 's' if applications|length != 1 }}</span>
+                &middot; sorted by overall score (resume + interview + authenticity)
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#scoreResumeModal">
+                <i class="fas fa-magnifying-glass-chart me-1"></i> Score a Resume
+            </button>
+            <a href="{{ url_for('employer.edit_job', job_id=job.id) }}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-pen me-1"></i> Edit Job
+            </a>
+        </div>
+    </div>
+</div>
+
+{% if blind_mode %}
+<div class="mb-3 p-3 d-flex align-items-center gap-3" style="background:var(--primary-soft);border-radius:var(--radius);border:1px solid rgba(99,102,241,0.2);">
+    <i class="fas fa-eye-slash" style="color:var(--primary);font-size:1.1rem;flex-shrink:0;"></i>
+    <div>
+        <strong style="font-size:0.88rem;">Blind Hiring Mode is ON.</strong>
+        <span class="text-muted small ms-1">Candidate names and emails are hidden. You're evaluating on merit alone.</span>
+    </div>
+    <a href="{{ url_for('employer.company_settings') }}" class="btn btn-outline-primary btn-sm ms-auto flex-shrink-0">Turn off</a>
+</div>
+{% endif %}
+
+{% if not applications %}
+<div class="card">
+    <div class="card-body text-center p-5">
+        <i class="fas fa-inbox" style="font-size:2.5rem; color:var(--border); margin-bottom:14px; display:block;"></i>
+        <p class="fw-bold mb-1">No applicants yet</p>
+        <p class="text-muted small mb-0">Applications will appear here as candidates apply. The pipeline is sorted by AI match score.</p>
+    </div>
+</div>
+{% else %}
+
+<!-- Filter bar -->
+<div class="d-flex gap-2 flex-wrap align-items-center mb-3">
+    <input type="text" id="nameSearch" placeholder="Search by name or email…"
+           class="form-control form-control-sm" style="max-width:240px;"
+           oninput="filterApplicants()">
+    <div class="d-flex gap-1 flex-wrap" id="statusFilterBtns">
+        <button class="btn btn-sm btn-primary filter-btn" data-filter="all" onclick="setFilter('all')">All</button>
+        <button class="btn btn-sm btn-outline-secondary filter-btn" data-filter="applied" onclick="setFilter('applied')">Applied</button>
+        <button class="btn btn-sm btn-outline-secondary filter-btn" data-filter="interviewing" onclick="setFilter('interviewing')">Interviewing</button>
+        <button class="btn btn-sm btn-outline-secondary filter-btn" data-filter="hired" onclick="setFilter('hired')">Hired</button>
+        <button class="btn btn-sm btn-outline-secondary filter-btn" data-filter="rejected" onclick="setFilter('rejected')">Rejected</button>
+    </div>
+    <span id="filterCount" class="text-muted small ms-1"></span>
+</div>
+
+<!-- Bulk action bar - hidden until 1+ selected -->
+<div class="d-flex gap-2 align-items-center mb-3 p-2" id="bulkActionBar" style="display:none; background:var(--primary-soft); border-radius:var(--radius); border:1px solid rgba(99,102,241,0.2);">
+    <span class="small fw-semibold ms-1"><span id="bulkSelectedCount">0</span> selected</span>
+    <button class="btn btn-sm btn-outline-success" onclick="bulkUpdateStatus('interviewing')">
+        <i class="fas fa-forward me-1"></i> Advance Selected
+    </button>
+    <button class="btn btn-sm btn-outline-danger" onclick="bulkUpdateStatus('rejected')">
+        <i class="fas fa-xmark me-1"></i> Reject Selected
+    </button>
+    <span class="text-muted small">(bulk reject sends no personalized feedback)</span>
+    <button class="btn btn-sm btn-link ms-auto" onclick="clearBulkSelection()">Clear selection</button>
+</div>
+
+{% for app in applications %}
+{% include "_partials/job_applicants_card_01.html" %}
+{% include "_partials/job_applicants_card_02.html" %}
+{% include "_partials/job_applicants_card_03.html" %}
+{% endfor %}
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% include "_partials/job_applicants_scripts_01.html" %}
+{% include "_partials/job_applicants_scripts_02.html" %}
+{% endblock %}

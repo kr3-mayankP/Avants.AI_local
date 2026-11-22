@@ -1,0 +1,414 @@
+<script>
+const chatUrl = "{{ url_for('candidate.interview_chat', job_id=job.id, application_id=application.id) }}";
+const answerUploadUrlEndpoint = "{{ url_for('candidate.interview_answer_upload_url', job_id=job.id, application_id=application.id) }}";
+const dashboardUrl = "{{ url_for('candidate.dashboard') }}";
+const saveSessionUrl = "{{ url_for('candidate.save_interview_session', job_id=job.id, application_id=application.id) }}";
+const feedbackUrl = "{{ url_for('candidate.submit_platform_feedback', application_id=application.id) }}";
+const savedSession = {{ saved_session|tojson if saved_session else 'null' }};
+let history         = [];
+let currentQuestion = null;
+let concluded       = false;
+let mediaRecorder   = null;
+let audioChunks     = [];
+let isRecording     = false;
+let questionNum     = 0;
+let cameraStream    = null;
+let interviewStarted = false;
+let savingAndExiting = false;
+let recordingMimeType = "";
+
+// getUserMedia failures get lumped into one generic "access denied" message
+// by default, but the actual cause matters - "you clicked deny" needs a
+// different fix than "Windows is blocking this at the OS level" or "Windows
+// Hello/another app already has the camera locked", which are the most
+// common real-world Windows-specific failures reported for this page even
+// though Edge/Chrome on Windows support the same APIs as every other
+// Chromium browser.
+function describeMediaError(e, deviceLabel) {
+    switch (e.name) {
+        case "NotAllowedError":
+        case "SecurityError":
+            return `${deviceLabel} access was blocked. Check your browser's permission icon in the address bar, and also check your system's privacy settings - on Windows: Settings → Privacy & Security → Camera/Microphone, make sure "Let apps access your camera/microphone" is on; on Mac: System Settings → Privacy & Security → Camera/Microphone.`;
+        case "NotFoundError":
+        case "OverconstrainedError":
+            return `No working ${deviceLabel.toLowerCase()} was found on this device. Make sure one is connected and isn't disabled.`;
+        case "NotReadableError":
+        case "TrackStartError":
+            return `Your ${deviceLabel.toLowerCase()} is already in use by another app (on Windows, this can also happen when Windows Hello's face/IR camera has an exclusive lock on it). Close other apps using it and try again.`;
+        default:
+            return `${deviceLabel} access failed (${e.name || "unknown error"}). Please try again.`;
+    }
+}
+let recordingHasVideo = false;
+
+// Estimated total questions by interview length
+const ESTIMATED_TOTAL = { short: 4, standard: 7, thorough: 10 }["{{ job.interview_length }}"] || 7;
+
+const avatar = document.getElementById("avatar");
+const avatarPhoto = document.getElementById("avatarPhoto");
+const waveformBars = document.querySelectorAll("#avatarWaveform span");
+const questionText = document.getElementById("questionText");
+const progressLabel = document.getElementById("progressLabel");
+const recordSection = document.getElementById("recordSection");
+const recordBtn = document.getElementById("recordBtn");
+const recordStatus = document.getElementById("recordStatus");
+
+// --- Sidebar helpers ---
+const progressBar = document.getElementById("progressBar");
+const progressPct = document.getElementById("progressPct");
+
+function updateProgress(current) {
+    const pct = Math.min(Math.round(((current - 1) / ESTIMATED_TOTAL) * 100), 95);
+    progressBar.style.width = pct + "%";
+    progressPct.textContent = pct + "%";
+}
+
+function markComplete() {
+    progressBar.style.width = "100%";
+    progressBar.style.background = "var(--success)";
+    progressPct.textContent = "100%";
+    progressPct.style.color = "var(--success)";
+}
+
+function lockRecording(msg) {
+    recordBtn.disabled = true;
+    recordStatus.textContent = msg || "Wait for the question to finish…";
+}
+
+function unlockRecording() {
+    if (concluded) return;
+    recordBtn.disabled = false;
+    recordStatus.textContent = "Tap to record your answer";
+}
+
+// --- Audio-reactive "talking" animation for the AI interviewer avatar ---
+// Drives a subtle scale pulse on the portrait + a waveform indicator off the
+// TTS audio's real-time amplitude, so the avatar appears to speak the
+// question rather than just glow while a static clip plays.
+let audioCtx = null;
+let talkingRAF = null;
+
+function getAudioContext() {
+    if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume().catch(() => {});
+    }
+    return audioCtx;
+}
+
+function animateTalking(analyser, data) {
+    analyser.getByteFrequencyData(data);
+    const avg = data.reduce((sum, v) => sum + v, 0) / data.length;
+    const level = avg / 255; // 0..1
+
+    if (avatarPhoto) {
+        avatarPhoto.style.transform = `scale(${1 + level * 0.05})`;
+    }
+    waveformBars.forEach((bar, i) => {
+        const sample = data[(i * 5 + 2) % data.length] / 255;
+        bar.style.height = `${4 + sample * 12}px`;
+    });
+
+    talkingRAF = requestAnimationFrame(() => animateTalking(analyser, data));
+}
+
+function stopTalkingAnimation() {
+    if (talkingRAF) {
+        cancelAnimationFrame(talkingRAF);
+        talkingRAF = null;
+    }
+    if (avatarPhoto) avatarPhoto.style.transform = "scale(1)";
+    waveformBars.forEach(bar => { bar.style.height = "4px"; });
+}
+
+function startTalkingAnimation(audioEl) {
+    const ctx = getAudioContext();
+    if (!ctx) return; // Web Audio unsupported - the pulse ring alone still shows "speaking"
+    try {
+        const source = ctx.createMediaElementSource(audioEl);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 64;
+        source.connect(analyser);
+        analyser.connect(ctx.destination);
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        animateTalking(analyser, data);
+    } catch (e) {
+        // e.g. a browser refusing a second MediaElementSource - fail silently,
+        // the audio still plays normally and the pulse ring still shows.
+    }
+}
+
+function setQuestion(text, audioUrl) {
+    questionNum++;
+    currentQuestion = text;
+    // progressLabel's job was just the initial "Connecting..." status -
+    // once a question is showing, progress lives entirely in the sidebar's
+    // percentage, not a "Question N" count here too.
+    progressLabel.style.display = "none";
+    questionText.textContent = text;
+    updateProgress(questionNum);
+
+    lockRecording("Listen to the question first…");
+
+    if (audioUrl) {
+        const audio = new Audio(audioUrl);
+        audio.crossOrigin = "anonymous";
+        avatar.classList.add("speaking");
+        startTalkingAnimation(audio);
+        audio.addEventListener("ended", () => {
+            avatar.classList.remove("speaking");
+            stopTalkingAnimation();
+            unlockRecording();
+        });
+        audio.play().catch(() => {
+            avatar.classList.remove("speaking");
+            stopTalkingAnimation();
+            unlockRecording();
+        });
+    } else {
+        // No TTS - give a moment to read before enabling the mic
+        setTimeout(unlockRecording, 1500);
+    }
+}
+
+function showVerdict(replyText) {
+    if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; }
+    document.getElementById("selfVideo").classList.remove("active");
+    markComplete();
+    document.getElementById("interviewStage").style.display = "none";
+    const resultsStage = document.getElementById("resultsStage");
+    resultsStage.style.display = "block";
+
+    const verdictMatch = replyText.match(/Verdict:\s*(Strong Yes|Yes|No|Strong No)/i);
+    const verdict = verdictMatch ? verdictMatch[1] : "Reviewed";
+    const isPositive = /yes/i.test(verdict);
+
+    const badge = document.getElementById("verdictBadge");
+    badge.innerHTML = `<span class="verdict-badge ${isPositive ? 'positive' : 'negative'}">${verdict}</span>`;
+
+    const reasonsEl = document.getElementById("verdictReasons");
+    reasonsEl.innerHTML = "";
+    replyText.split("\n").forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("Verdict:") || trimmed === "Why:") return;
+        const div = document.createElement("div");
+        div.className = "match-line";
+        if (trimmed.startsWith("+")) {
+            div.innerHTML = `<i class="fa-solid fa-circle-check text-success me-2"></i>${trimmed.slice(1).trim()}`;
+        } else if (trimmed.startsWith("-")) {
+            div.innerHTML = `<i class="fa-solid fa-circle-xmark text-danger me-2"></i>${trimmed.slice(1).trim()}`;
+        } else {
+            return;
+        }
+        reasonsEl.appendChild(div);
+    });
+}
+
+let interviewFeedbackRating = 0;
+function setInterviewFeedbackRating(n) {
+    interviewFeedbackRating = n;
+    document.querySelectorAll('#interviewFeedbackStars i').forEach(el => {
+        const filled = parseInt(el.dataset.star, 10) <= n;
+        el.className = filled ? 'fas fa-star' : 'far fa-star';
+        el.style.color = filled ? 'var(--warning)' : 'var(--text-muted)';
+    });
+    document.getElementById('interviewFeedbackSubmit').disabled = false;
+}
+
+async function submitInterviewFeedback() {
+    if (!interviewFeedbackRating) return;
+    const btn = document.getElementById('interviewFeedbackSubmit');
+    btn.disabled = true;
+    const formData = new FormData();
+    formData.append('context', 'interview_completed');
+    formData.append('rating', interviewFeedbackRating);
+    formData.append('comment', document.getElementById('interviewFeedbackComment').value);
+    try {
+        await fetch(feedbackUrl, { method: 'POST', body: formData });
+    } catch (_) {
+        // Best-effort - the same "Rate your experience" prompt still shows on
+        // the dashboard later if this silently fails.
+    }
+    document.getElementById('interviewFeedbackStars').style.display = 'none';
+    document.getElementById('interviewFeedbackComment').style.display = 'none';
+    btn.style.display = 'none';
+    document.getElementById('interviewFeedbackThanks').style.display = 'block';
+}
+
+// Uploads the recorded answer straight to Supabase Storage via a signed
+// URL, bypassing this app's own server for the transfer entirely - a long
+// answer sent through avants.ai's own domain risks rejection at the edge
+// well under what a multi-minute recording needs, regardless of anything
+// this app's own server allows. Only the resulting storage path (a few
+// bytes) goes to /interview-chat afterward, not the recording itself.
+async function uploadAnswerDirectly(mediaBlob) {
+    const res = await fetch(answerUploadUrlEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content_type: mediaBlob.type || "video/webm" }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Could not prepare the upload. Please try again.");
+
+    const putRes = await fetch(data.upload_url, {
+        method: "PUT",
+        headers: {
+            "apikey": data.anon_key,
+            "Content-Type": mediaBlob.type || "application/octet-stream",
+            "x-upsert": "true",
+        },
+        body: mediaBlob,
+    });
+    if (!putRes.ok) throw new Error(`Upload failed (HTTP ${putRes.status}). Please try again.`);
+    return data.path;
+}
+
+async function sendTurn(mediaBlob, hasVideo) {
+    let videoPath = null;
+    if (mediaBlob) {
+        if (recordStatus) recordStatus.textContent = "Uploading your answer...";
+        videoPath = await uploadAnswerDirectly(mediaBlob);
+        if (recordStatus) recordStatus.textContent = "Transcribing your answer...";
+    }
+
+    const formData = new FormData();
+    formData.append("history", JSON.stringify(history));
+    formData.append("wrap_up", "false");
+    formData.append("has_video", hasVideo ? "true" : "false");
+    if (videoPath) formData.append("video_path", videoPath);
+
+    const response = await fetch(chatUrl, { method: "POST", body: formData });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Interview failed.");
+    return result;
+}
+
+async function startInterview() {
+    // Resuming a saved session - replay the last unanswered question instead
+    // of asking the AI for a fresh one (which would desync the conversation).
+    if (savedSession && savedSession.length > 0) {
+        const lastAssistant = [...savedSession].reverse().find(m => m.role === "assistant");
+        if (lastAssistant) {
+            history = savedSession.slice();
+            questionNum = history.filter(m => m.role === "assistant").length - 1;
+            setQuestion(lastAssistant.content, null);
+            recordSection.style.display = "block";
+            return;
+        }
+    }
+
+    try {
+        const result = await sendTurn(null);
+        setQuestion(result.reply, result.reply_audio_url);
+        history.push({ role: "assistant", content: result.reply });
+        recordSection.style.display = "block";
+    } catch (e) {
+        questionText.textContent = e.message;
+    }
+}
+
+async function saveSessionAndExit() {
+    const btn = document.getElementById("saveExitBtn");
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+
+    try {
+        await fetch(saveSessionUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ history }),
+        });
+    } catch (e) {
+        // Best-effort - fall through to dashboard either way rather than trap the user here.
+    }
+    interviewStarted = false; // saved on purpose, don't also force-submit via beforeunload
+    window.location.href = dashboardUrl;
+}
+
+document.getElementById("saveExitBtn").addEventListener("click", async () => {
+    if (concluded) return;
+
+    if (isRecording) {
+        // Don't just navigate away mid-recording - that silently throws away
+        // whatever answer was being recorded, since nothing gets pushed into
+        // history until a recording is stopped and transcribed. Stop it and
+        // let onRecordingStop() (which checks savingAndExiting) transcribe
+        // it into history first, then save and leave from there instead.
+        savingAndExiting = true;
+        const btn = document.getElementById("saveExitBtn");
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+        mediaRecorder.stop();
+        isRecording = false;
+        recordBtn.classList.remove("recording");
+        return;
+    }
+
+    await saveSessionAndExit();
+});
+
+async function setupRecorder() {
+    try {
+        let stream;
+        // Camera is optional (candidates can skip it) - when it's on, record
+        // the candidate's actual answer as video+audio by combining the live
+        // camera feed's video track with a fresh mic audio track, instead of
+        // recording audio-only while a camera preview plays alongside it.
+        if (cameraStream && cameraStream.getVideoTracks().some(t => t.readyState === "live")) {
+            const audioOnlyStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream = new MediaStream([
+                ...cameraStream.getVideoTracks(),
+                ...audioOnlyStream.getAudioTracks(),
+            ]);
+            recordingHasVideo = true;
+        } else {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            recordingHasVideo = false;
+        }
+
+        // Safari (desktop and iOS) doesn't support webm at all - include an
+        // mp4 fallback so it gets a real, explicitly-chosen format instead
+        // of silently falling through to "" (browser default), which this
+        // code then has no way to know the actual codec of afterward.
+        const candidates = recordingHasVideo
+            ? ["video/webm;codecs=vp8,opus", "video/webm", "video/mp4"]
+            : ["audio/webm", "audio/mp4"];
+        const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t)) || "";
+        recordingMimeType = mimeType || (recordingHasVideo ? "video/webm" : "audio/webm");
+        mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+        mediaRecorder.addEventListener("dataavailable", (e) => {
+            audioChunks.push(e.data);
+        });
+        mediaRecorder.addEventListener("stop", onRecordingStop);
+        return true;
+    } catch (e) {
+        recordStatus.textContent = describeMediaError(e, "Microphone");
+        recordBtn.disabled = true;
+        return false;
+    }
+}
+
+async function onRecordingStop() {
+    if (concluded) {
+        audioChunks = [];
+        return;
+    }
+
+    const blob = new Blob(audioChunks, { type: recordingMimeType || (recordingHasVideo ? "video/webm" : "audio/webm") });
+    audioChunks = [];
+    recordBtn.disabled = true;
+    recordStatus.textContent = "Transcribing your answer...";
+
+    try {
+        const result = await sendTurn(blob, recordingHasVideo);
+        history.push({ role: "user", content: result.transcribed_answer });
+        history.push({ role: "assistant", content: result.reply });
+
+        if (savingAndExiting) {
+            await saveSessionAndExit();
+            return;
+        }

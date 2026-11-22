@@ -1,0 +1,170 @@
+/* ── Layout ── */
+.practice-wrap { min-height: 70vh; }
+
+/* ── Practice banner ── */
+.practice-badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: #fef3c7; color: #92400e;
+    border: 1px solid #fde68a; border-radius: 999px;
+    padding: 3px 14px; font-size: 0.7rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+/* ── Tips screen ── */
+.tips-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 40px 32px; text-align: center;
+}
+.tip-row {
+    display: flex; gap: 14px; align-items: flex-start;
+    text-align: left; margin-bottom: 14px; font-size: 0.88rem;
+}
+.tip-icon {
+    width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 0.9rem;
+}
+
+/* ── Interview card ── */
+.interview-main {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+}
+
+/* AI question area */
+.ai-question-area {
+    padding: 36px 32px 28px; text-align: center;
+    border-bottom: 1px solid var(--border);
+}
+.ai-avatar {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: var(--primary-soft); color: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.8rem; margin: 0 auto 18px;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+}
+.ai-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ai-avatar.speaking { animation: speakPulse 1s infinite; }
+@keyframes speakPulse {
+    0%   { box-shadow: 0 0 0 0   rgba(79,70,229,0.4); }
+    70%  { box-shadow: 0 0 0 16px rgba(79,70,229,0);   }
+    100% { box-shadow: 0 0 0 0   rgba(79,70,229,0);   }
+}
+.ai-question-text {
+    font-size: 1.2rem; font-weight: 600;
+    max-width: 520px; margin: 0 auto; line-height: 1.55; color: var(--text);
+}
+.q-label {
+    font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 10px;
+}
+
+/* Input area */
+.input-area { padding: 20px 24px; }
+.mode-tabs {
+    display: flex; gap: 0; border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden; margin-bottom: 16px;
+    width: fit-content;
+}
+.mode-tab {
+    padding: 6px 18px; font-size: 0.8rem; font-weight: 600;
+    cursor: pointer; border: none; background: transparent; color: var(--text-muted);
+    transition: all 0.15s;
+}
+.mode-tab.active { background: var(--primary); color: #fff; }
+
+/* Voice mode */
+.voice-controls { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.record-btn {
+    width: 72px; height: 72px; border-radius: 50%; border: none;
+    background: var(--primary); color: #fff; font-size: 1.5rem; cursor: pointer;
+    transition: all 0.15s; flex-shrink: 0;
+}
+.record-btn.recording { background: var(--danger); animation: rpulse 1.2s infinite; }
+.record-btn:disabled { opacity: 0.45; cursor: not-allowed; animation: none; }
+@keyframes rpulse {
+    0%   { box-shadow: 0 0 0 0   rgba(220,38,38,0.5); }
+    70%  { box-shadow: 0 0 0 16px rgba(220,38,38,0);  }
+    100% { box-shadow: 0 0 0 0   rgba(220,38,38,0);  }
+}
+.record-timer {
+    font-size: 1.1rem; font-weight: 700; color: var(--danger);
+    font-variant-numeric: tabular-nums; display: none;
+}
+.record-status-text { font-size: 0.85rem; color: var(--text-muted); text-align: center; }
+
+/* Answer preview (after stop, before submit) */
+.answer-preview {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px; margin-top: 8px;
+    font-size: 0.88rem; color: var(--text); text-align: left;
+    display: none;
+}
+.answer-preview-label {
+    font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 6px;
+}
+
+/* Text mode */
+.text-input-area { display: none; }
+.text-input-area textarea {
+    width: 100%; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; font-size: 0.9rem; resize: vertical; min-height: 100px;
+    font-family: inherit; color: var(--text); background: var(--bg);
+}
+.text-input-area textarea:focus { outline: none; border-color: var(--primary); }
+
+/* Processing spinner overlay */
+.processing-overlay {
+    display: none; align-items: center; justify-content: center;
+    gap: 10px; padding: 18px; color: var(--text-muted); font-size: 0.88rem;
+}
+
+/* Transcript (inline below question) */
+.t-bubble {
+    font-size: 0.81rem; line-height: 1.45; color: var(--text);
+}
+.t-bubble-label {
+    font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; opacity: 0.6; margin-bottom: 3px;
+}
+
+/* Coaching report */
+.coaching-wrap {
+    padding: 32px; text-align: center;
+}
+.score-ring-lg {
+    width: 100px; height: 100px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 12px; font-size: 2.2rem; font-weight: 800;
+    border: 5px solid var(--border); transition: border-color 0.6s;
+}
+.score-ring-fill {
+    width: 100%; height: 8px; background: var(--border);
+    border-radius: 99px; overflow: hidden; margin: 8px 0 18px;
+}
+.score-ring-fill-bar {
+    height: 100%; border-radius: 99px; width: 0;
+    transition: width 0.8s ease;
+}
+.coaching-grid { display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.coaching-block {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px;
+}
+.coaching-block-title {
+    font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 10px;
+}
+.coaching-item {
+    display: flex; gap: 9px; margin-bottom: 8px;
+    align-items: flex-start; font-size: 0.84rem;
+}
+.coaching-item:last-child { margin-bottom: 0; }
+.ci-dot {
+    width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 0.58rem; margin-top: 1px;
+}
+.ci-s { background: var(--success-soft); color: var(--success); }
+.ci-i { background: var(--warning-soft); color: var(--warning); }
+.ci-t { background: var(--primary-soft); color: var(--primary); }

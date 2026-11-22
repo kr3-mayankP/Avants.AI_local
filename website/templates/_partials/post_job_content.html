@@ -1,0 +1,172 @@
+{# ----------------------------------------------------------------
+   CHANGE BLOCK: 2026-11-22
+   NEW FILE - active implementation
+   ---------------------------------------------------------------- #}
+<div class="job-workspace">
+    <div class="job-workspace-header">
+        <div>
+            <a class="job-back-link" href="{{ url_for('employer.dashboard') }}"><i class="fas fa-arrow-left"></i> Back to Jobs</a>
+            <h1>{{ 'Edit Job' if job else 'Post a New Job' }}</h1>
+            <p>Create a job, add clear requirements, and let AI help you attract the right candidates.</p>
+        </div>
+        <div class="job-header-actions">
+            <button type="button" class="btn job-secondary-action" id="saveDraftTop"><i class="fas fa-floppy-disk"></i> Save as Draft</button>
+            <button type="button" class="btn job-primary-action" id="publishTop"><i class="fas fa-paper-plane"></i> Publish Job</button>
+        </div>
+    </div>
+
+    <nav class="job-step-nav" aria-label="Job creation steps">
+        <button type="button" class="job-step active" data-step="1"><span>1</span> Job Details</button>
+        <button type="button" class="job-step" data-step="2"><span>2</span> Requirements</button>
+        <button type="button" class="job-step" data-step="3"><span>3</span> Compensation</button>
+        <button type="button" class="job-step" data-step="4"><span>4</span> Interview &amp; Screening</button>
+        <button type="button" class="job-step" data-step="5"><span>5</span> Review &amp; Publish</button>
+    </nav>
+
+    <div class="job-workspace-grid">
+        <div class="job-form-column">
+            <form method="POST" id="postJobForm" action="{{ url_for('employer.edit_job', job_id=job.id) if job else url_for('employer.post_job') }}">
+                <section class="job-step-panel active" data-panel="1">
+                    <div class="job-card">
+                        <div class="job-card-heading">
+                            <span class="job-card-icon"><i class="fas fa-briefcase"></i></span>
+                            <div><h2>Basic Job Details</h2><p>Core information about the role opening.</p></div>
+                            <button type="button" class="job-ai-button" data-ai="title"><i class="fas fa-wand-magic-sparkles"></i> Generate with AI</button>
+                        </div>
+                        <div class="job-field-grid">
+                            <label class="job-field job-field-wide"><span>Job Title <b>*</b></span>
+                                <input type="text" class="form-control" name="title" id="jobTitle" value="{{ job.title if job else '' }}" placeholder="e.g. Senior Backend Engineer" required>
+                            </label>
+                            <label class="job-field"><span>Work Type <b>*</b></span>
+                                {% set _wt = '' %}
+                                {% if job and job.location %}
+                                    {% if job.location.startswith('Remote (Worldwide)') %}{% set _wt = 'Remote (Worldwide)' %}
+                                    {% elif job.location.startswith('Remote (US Only)') %}{% set _wt = 'Remote (US Only)' %}
+                                    {% elif job.location.startswith('Hybrid') %}{% set _wt = 'Hybrid' %}
+                                    {% elif job.location.startswith('On-site') %}{% set _wt = 'On-site' %}
+                                    {% else %}{% set _wt = job.location %}{% endif %}
+                                {% endif %}
+                                <select class="form-select" name="work_type" id="workType" onchange="toggleCityInput()">
+                                    <option value="Remote (Worldwide)" {{ 'selected' if _wt == 'Remote (Worldwide)' }}>Remote (Worldwide)</option>
+                                    <option value="Remote (US Only)" {{ 'selected' if _wt == 'Remote (US Only)' }}>Remote (US Only)</option>
+                                    <option value="Hybrid" {{ 'selected' if _wt == 'Hybrid' }}>Hybrid</option>
+                                    <option value="On-site" {{ 'selected' if _wt == 'On-site' }}>On-site</option>
+                                </select>
+                            </label>
+                            <label class="job-field"><span>Employment Type <b>*</b></span>
+                                <select class="form-select" name="employment_type">
+                                    {% for opt in ['Full-time', 'Part-time', 'Contract', 'Internship'] %}
+                                        <option value="{{ opt }}" {{ 'selected' if job and job.employment_type == opt }}>{{ opt }}</option>
+                                    {% endfor %}
+                                </select>
+                            </label>
+                            <label class="job-field"><span>Category <b>*</b></span>
+                                <select class="form-select" name="category">
+                                    {% for cat in categories %}
+                                        <option value="{{ cat }}" {{ 'selected' if job and job.category == cat }}>{{ cat }}</option>
+                                    {% endfor %}
+                                </select>
+                            </label>
+                            <label class="job-field"><span>Experience Level <b>*</b></span>
+                                <select class="form-select" id="experienceLevel" name="experience_level">
+                                    <option>Mid Level (3-5 years)</option><option>Entry Level (0-2 years)</option>
+                                    <option>Senior Level (5-8 years)</option><option>Lead / Principal (8+ years)</option>
+                                </select>
+                            </label>
+                            <label class="job-field" id="cityInputWrap"><span>Location</span>
+                                {% set _city = '' %}
+                                {% if job and job.location and ' - ' in job.location %}{% set _city = job.location.split(' - ', 1)[1] %}{% endif %}
+                                <input type="text" class="form-control" name="location_city" id="locationCity" value="{{ _city }}" placeholder="e.g. Bangalore, India">
+                            </label>
+                        </div>
+                    </div>
+                    <div class="job-card">
+                        <div class="job-card-heading">
+                            <span class="job-card-icon"><i class="fas fa-align-left"></i></span>
+                            <div><h2>Job Description</h2><p>Describe the role, responsibilities, and what success looks like.</p></div>
+                            <button type="button" class="job-ai-button" onclick="improveDescription()"><i class="fas fa-wand-magic-sparkles"></i> Write with AI</button>
+                        </div>
+                        {% set secs = job.description_sections if job else none %}
+                        <label class="job-textarea-field"><span>About This Role <b>*</b></span>
+                            <textarea class="form-control desc-section" id="sec_about" rows="4" placeholder="Overview of the role, its purpose, and why it matters...">{{ secs.about if secs else (job.description if job and not secs else '') }}</textarea>
+                        </label>
+                        <label class="job-textarea-field"><span>Key Responsibilities <b>*</b></span>
+                            <textarea class="form-control desc-section" id="sec_what_you_do" rows="5" maxlength="1500" placeholder="List the work the candidate will own day to day...">{{ secs.what_you_do if secs else '' }}</textarea>
+                            <small id="responsibilityCount">0 / 1500</small>
+                        </label>
+                        <label class="job-textarea-field"><span>Contract or Payment Terms</span>
+                            <textarea class="form-control desc-section" id="sec_contract_terms" rows="3" placeholder="Payment schedule, contract duration, or engagement details...">{{ secs.contract_terms if secs else '' }}</textarea>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="job-step-panel" data-panel="2">
+                    <div class="job-card">
+                        <div class="job-card-heading">
+                            <span class="job-card-icon"><i class="fas fa-graduation-cap"></i></span>
+                            <div><h2>Requirements &amp; Skills</h2><p>Add clear qualifications and preferred experience.</p></div>
+                            <button type="button" class="job-ai-button" onclick="suggestSkills()"><i class="fas fa-wand-magic-sparkles"></i> Suggest with AI</button>
+                        </div>
+                        <div class="job-field-grid">
+                            <label class="job-field"><span>Education</span><select class="form-select" id="educationLevel"><option value="">Select qualification</option><option>Bachelor's Degree</option><option>Master's Degree</option><option>Associate Degree</option><option>Relevant certification</option><option>No formal degree required</option></select></label>
+                            <div class="job-field job-field-wide"><span>Years of Experience</span><div class="experience-range"><input type="number" class="form-control" id="experienceMin" min="0" max="30" placeholder="Min" value="3"><span>to</span><input type="number" class="form-control" id="experienceMax" min="0" max="30" placeholder="Max" value="5"><em>years</em></div></div>
+                        </div>
+                        <label class="job-textarea-field"><span>Required Qualifications <b>*</b></span><textarea class="form-control desc-section" id="sec_requirements" rows="4" placeholder="Minimum skills, experience, education, or certifications...">{{ secs.requirements if secs else '' }}</textarea></label>
+                        <label class="job-textarea-field"><span>Preferred Qualifications</span><textarea class="form-control desc-section" id="sec_preferred" rows="3" placeholder="Nice-to-have experience or advanced capabilities...">{{ secs.preferred if secs else '' }}</textarea></label>
+                        <div class="job-chip-section"><span>Required Skills</span><div class="job-chip-list" id="requiredSkills"><span class="job-chip">Java <button type="button" aria-label="Remove Java"><i class="fas fa-xmark"></i></button></span><span class="job-chip">Spring Boot <button type="button" aria-label="Remove Spring Boot"><i class="fas fa-xmark"></i></button></span><span class="job-chip">Microservices <button type="button" aria-label="Remove Microservices"><i class="fas fa-xmark"></i></button></span></div><div class="job-chip-add"><input id="requiredSkillInput" class="form-control" placeholder="Add a required skill"><button type="button" id="addRequiredSkill">+ Add Skill</button></div></div>
+                        <div class="job-chip-section"><span>Preferred Skills</span><div class="job-chip-list" id="preferredSkills"><span class="job-chip neutral">Docker <button type="button" aria-label="Remove Docker"><i class="fas fa-xmark"></i></button></span><span class="job-chip neutral">AWS <button type="button" aria-label="Remove AWS"><i class="fas fa-xmark"></i></button></span></div><div class="job-chip-add"><input id="preferredSkillInput" class="form-control" placeholder="Add a preferred skill"><button type="button" id="addPreferredSkill">+ Add Skill</button></div></div>
+                        <label class="job-field"><span>Certifications (optional)</span><input type="text" class="form-control" id="certifications" placeholder="e.g. AWS Certified Developer, Kubernetes CKA"></label>
+                    </div>
+                </section>
+
+                <section class="job-step-panel" data-panel="3">
+                    <div class="job-card">
+                        <div class="job-card-heading"><span class="job-card-icon"><i class="fas fa-wallet"></i></span><div><h2>Compensation &amp; Benefits</h2><p>Add salary range and optional benefits.</p></div><label class="job-switch"><input type="checkbox" id="salaryVisible" checked><span></span> Show salary to candidates</label></div>
+                        <div class="job-field-grid">
+                            <label class="job-field"><span>Compensation Type</span><select class="form-select" name="pay_type" id="payType" onchange="updateSalaryHints()">{% set pt = job.pay_type if job and job.pay_type else 'yearly' %}<option value="yearly" {{ 'selected' if pt == 'yearly' }}>Per year (salary)</option><option value="hourly" {{ 'selected' if pt == 'hourly' }}>Per hour</option><option value="monthly" {{ 'selected' if pt == 'monthly' }}>Per month</option><option value="stipend" {{ 'selected' if pt == 'stipend' }}>Stipend (fixed)</option><option value="contract" {{ 'selected' if pt == 'contract' }}>Project / contract</option></select></label>
+                            <label class="job-field"><span>Currency</span><select class="form-select" name="salary_currency" id="salaryCurrency" onchange="updateSalaryHints()">{% set cur = job.salary_currency if job and job.salary_currency else 'USD' %}{% for code, info in currencies.items() %}<option value="{{ code }}" data-symbol="{{ info.symbol }}" {{ 'selected' if cur == code }}>{{ info.label }}</option>{% endfor %}</select></label>
+                            <div class="job-field job-field-wide"><span>Salary Range <b>*</b></span><div class="salary-range"><div class="input-group"><span class="input-group-text" id="currencySymbolMin">$</span><input type="number" class="form-control" name="salary_usd" id="salaryMin" min="0" required value="{{ job.salary_usd if job and job.salary_usd else '' }}" placeholder="80000"></div><span>-</span><div class="input-group" id="salaryMaxGroup"><span class="input-group-text" id="currencySymbolMax">$</span><input type="number" class="form-control" name="salary_max_usd" id="salaryMax" min="0" value="{{ job.salary_max_usd if job and job.salary_max_usd else '' }}" placeholder="120000"></div></div><small id="salaryHint"></small></div>
+                        </div>
+                        <div class="job-benefits"><span>Benefits (optional)</span><label><input type="checkbox" value="Health insurance" checked> Health Insurance</label><label><input type="checkbox" value="Paid time off" checked> Paid Time Off</label><label><input type="checkbox" value="Remote stipend"> Remote Stipend</label><label><input type="checkbox" value="Learning budget"> Learning Budget</label><label><input type="checkbox" value="Flexible schedule"> Flexible Schedule</label><button type="button" id="addBenefit">+ Add Benefit</button></div>
+                    </div>
+                </section>
+
+                <section class="job-step-panel" data-panel="4">
+                    <div class="job-card">
+                        <div class="job-card-heading"><span class="job-card-icon"><i class="fas fa-calendar-check"></i></span><div><h2>Interview &amp; Screening</h2><p>Configure interviews and candidate screening.</p></div></div>
+                        <div class="job-field-grid"><label class="job-field"><span>Interview Length</span><select class="form-select" name="interview_length" id="interviewLength">{% for length in interview_lengths %}<option value="{{ length }}" {{ 'selected' if (job.interview_length if job else 'standard') == length }}>{{ length|capitalize }}</option>{% endfor %}</select></label><label class="job-field"><span>Number of Rounds</span><select class="form-select" id="interviewRounds"><option>2 Rounds</option><option>1 Round</option><option>3 Rounds</option><option>4 Rounds</option></select></label></div>
+                        <label class="job-toggle-row"><input type="checkbox" name="camera_required" id="cameraRequired" value="1" {{ 'checked' if job and job.camera_required }}><span><strong>Require camera</strong><small>Candidates must enable their camera for the AI interview.</small></span></label>
+                        <label class="job-toggle-row"><input type="checkbox" id="enableResumeScreening" checked><span><strong>AI Resume Screening</strong><small>Automatically score and rank applications.</small></span></label>
+                        <label class="job-toggle-row"><input type="checkbox" id="enableAiInterview" checked><span><strong>AI Interview</strong><small>Every applicant completes an AI interview.</small></span></label>
+                        <label class="job-textarea-field"><span>AI Interviewer Guidance</span><textarea class="form-control" name="interview_focus" id="interviewFocus" rows="3" placeholder="Topics to cover, skills to validate, or concerns to probe...">{{ job.interview_focus if job else '' }}</textarea></label>
+                        <button type="button" class="job-ai-button" id="previewQuestionsBtn"><i class="fas fa-magic"></i> Generate Interview Questions</button>
+                        <div id="previewError"></div>
+                        <div class="preview-questions" id="previewQuestionsBox" style="display:{{ 'block' if job and job.interview_questions else 'none' }};"><div id="questionsList"></div><button type="button" class="btn job-secondary-action btn-sm" id="addQuestionBtn"><i class="fas fa-plus"></i> Add Question</button></div>
+                        <div class="job-voice-question">
+                            <button type="button" class="btn job-secondary-action btn-sm" id="recordQuestionBtn"><i class="fas fa-microphone"></i> Record Question</button>
+                            <span id="recordQuestionStatus"></span>
+                        </div>
+                        <input type="hidden" name="interview_questions" id="interviewQuestionsField">
+                    </div>
+                </section>
+
+                <section class="job-step-panel" data-panel="5">
+                    <div class="job-card job-review-card"><div class="job-card-heading"><span class="job-card-icon"><i class="fas fa-eye"></i></span><div><h2>Review &amp; Publish</h2><p>Confirm the final details before publishing.</p></div></div><div class="job-review-grid"><div><span>Job title</span><strong id="reviewTitle">Not set</strong></div><div><span>Work setup</span><strong id="reviewWorkType">Remote</strong></div><div><span>Employment</span><strong id="reviewEmployment">Full-time</strong></div><div><span>Salary</span><strong id="reviewSalary">Not set</strong></div></div><div class="job-review-confirm"><label><input type="checkbox" id="publishConfirm"> I reviewed the job and confirm all details are ready to publish.</label></div></div>
+                </section>
+
+                <input type="hidden" name="description" id="descriptionField">
+                {% if job %}<input type="hidden" name="status" value="{{ job.status }}">{% endif %}
+                <button type="submit" name="save_as_draft" value="1" id="saveDraftSubmit" formnovalidate hidden></button>
+                <div class="job-step-footer"><button type="button" class="btn job-secondary-action" id="prevStep"><i class="fas fa-arrow-left"></i> Back</button><button type="button" class="btn job-primary-action" id="nextStep">Next <i class="fas fa-arrow-right"></i></button><button type="submit" class="btn job-primary-action" id="publishSubmit"><i class="fas fa-paper-plane"></i> Publish Job</button></div>
+            </form>
+        </div>
+
+        <aside class="job-inspector">
+            <div class="job-inspector-card"><div class="job-inspector-heading"><div><i class="fas fa-sparkles"></i><strong>AI Job Assistant</strong></div><span>BETA</span></div><div class="job-assistant-tabs"><button type="button" id="aiGenerate">Generate</button><button type="button" onclick="improveDescription()">Improve</button><button type="button" onclick="analyzeJD()">Check</button></div><textarea id="aiPrompt" class="form-control" rows="3" placeholder="e.g. Senior backend engineer with Java and Spring Boot"></textarea><button type="button" class="job-assistant-submit" id="aiGenerateJob"><i class="fas fa-wand-magic-sparkles"></i> Generate with AI</button></div>
+            <div class="job-inspector-card"><div class="job-inspector-heading"><div><i class="fas fa-list-check"></i><strong>Job Post Checklist</strong></div><span id="checklistScore">0 / 8</span></div><ul class="job-checklist"><li id="chk-title"><i class="fas fa-circle-xmark"></i> Job title</li><li id="chk-location"><i class="fas fa-circle-xmark"></i> Work type &amp; location</li><li id="chk-description"><i class="fas fa-circle-xmark"></i> Description</li><li id="chk-responsibilities"><i class="fas fa-circle-xmark"></i> Responsibilities</li><li id="chk-requirements"><i class="fas fa-circle-xmark"></i> Requirements</li><li id="chk-salary"><i class="fas fa-circle-xmark"></i> Compensation</li><li id="chk-focus"><i class="fas fa-circle-xmark"></i> Interview settings</li><li id="chk-questions"><i class="fas fa-circle-xmark"></i> Screening &amp; assessment</li></ul></div>
+            <div class="job-inspector-card"><div class="job-inspector-heading"><div><i class="fas fa-eye"></i><strong>Job Preview</strong></div><button type="button" id="refreshPreview" aria-label="Refresh preview"><i class="fas fa-expand"></i></button></div><div class="job-preview"><h3 id="previewTitle">{{ job.title if job else 'Senior Backend Engineer' }}</h3><p id="previewMeta">Remote (Worldwide) · Full-time</p><p id="previewSalary">$80,000 - $120,000 /yr</p><h4>About This Role</h4><div id="previewDescription" class="preview-skeleton">A clear overview of the role will appear here.</div><h4>Key Responsibilities</h4><ul><li>Build and maintain scalable services</li><li>Collaborate across product and engineering</li></ul><h4>Requirements</h4><div id="previewSkills" class="preview-skills"><span>Java</span><span>Spring Boot</span><span>Microservices</span></div></div></div>
+            <div class="job-inspector-card quality-card"><div class="job-inspector-heading"><div><i class="fas fa-chart-simple"></i><strong>AI Quality Analyzer</strong></div><div class="quality-score" id="qualityScore">92%</div></div><p>Your job looks strong.</p><ul id="jdAnalysisResult"><li><i class="fas fa-circle-check"></i> Clear job title</li><li><i class="fas fa-circle-check"></i> Structured description</li><li><i class="fas fa-circle-check"></i> Compensation included</li></ul></div>
+            <div class="job-inspector-card"><div class="job-inspector-heading"><div><i class="fas fa-clone"></i><strong>Job Templates</strong></div></div><div class="job-template-list"><button type="button" data-template="backend">Backend Engineer <span>Use</span></button><button type="button" data-template="devops">DevOps Engineer <span>Use</span></button><button type="button" data-template="cloud">Cloud Engineer <span>Use</span></button></div></div>
+        </aside>
+    </div>
+</div>

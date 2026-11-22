@@ -1,0 +1,120 @@
+// ── Start ──────────────────────────────────────────────────────────────────
+async function fetchWithRetry(url, options, maxAttempts = 3, delayMs = 1500) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const res = await fetch(url, options);
+            return res;
+        } catch (e) {
+            if (attempt === maxAttempts) throw e;
+            await new Promise(r => setTimeout(r, delayMs * attempt));
+        }
+    }
+}
+
+function showConnectError(msg) {
+    document.getElementById('connectingSpinner').style.display = 'none';
+    qLabel.textContent = 'Connection failed';
+    questionText.textContent = '';
+    questionText.style.color = '';
+    const errEl = document.getElementById('connectError');
+    document.getElementById('connectErrorMsg').textContent = msg;
+    errEl.style.display = 'block';
+}
+
+async function connectAndStart() {
+    document.getElementById('connectingSpinner').style.display = '';
+    document.getElementById('connectError').style.display = 'none';
+    qLabel.innerHTML = '<i class="fas fa-spinner fa-spin me-1" id="connectingSpinner"></i> Connecting…';
+    questionText.textContent = 'Setting up your practice session…';
+    questionText.style.color = 'var(--text-muted)';
+    questionText.style.fontSize = '1rem';
+
+    try {
+        const fd = new FormData();
+        fd.append('history', JSON.stringify(history));
+        fd.append('wrap_up', 'false');
+        const res = await fetchWithRetry(CHAT_URL, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Server error. Please try again.');
+
+        history.push({ role: 'assistant', content: data.reply });
+        addBubble('ai', data.reply);
+
+        // Reset question area styles before showing real question
+        questionText.style.color = '';
+        questionText.style.fontSize = '';
+        document.getElementById('connectError').style.display = 'none';
+        document.getElementById('qLabel').innerHTML = '';
+
+        setQuestion(data.reply);
+        inputArea.style.display = 'block';
+        switchMode('voice');
+    } catch (e) {
+        showConnectError('Couldn\'t connect to the practice session. Check your internet connection and try again.');
+    }
+}
+
+function retryConnect() {
+    connectAndStart();
+}
+
+function beginInterview() {
+    document.getElementById('tipsScreen').style.display = 'none';
+    document.getElementById('interviewScreen').style.display = 'block';
+    inputArea.style.display = 'none';
+    connectAndStart();
+}
+
+// ── Coaching report ────────────────────────────────────────────────────────
+function showCoachingReport(coaching) {
+    document.getElementById('interviewScreen').style.display = 'none';
+    document.getElementById('reportScreen').style.display = 'block';
+
+    const cs = coaching.communication_score || 0;
+    const color = cs >= 75 ? 'var(--success)' : (cs >= 50 ? 'var(--warning)' : 'var(--danger)');
+
+    const ring = document.getElementById('scoreRing');
+    ring.textContent = cs;
+    ring.style.borderColor = color;
+    ring.style.color = color;
+
+    setTimeout(() => {
+        const bar = document.getElementById('scoreBar');
+        bar.style.background = color;
+        bar.style.width = cs + '%';
+    }, 100);
+
+    const grid = document.getElementById('coachingGrid');
+    let html = '';
+
+    if (coaching.strengths?.length) {
+        html += `<div class="coaching-block">
+            <div class="coaching-block-title"><i class="fas fa-check-circle me-1" style="color:var(--success);"></i>What you did well</div>`;
+        coaching.strengths.forEach(s => {
+            html += `<div class="coaching-item"><div class="ci-dot ci-s"><i class="fas fa-check"></i></div><span>${s}</span></div>`;
+        });
+        html += '</div>';
+    }
+
+    if (coaching.improvements?.length) {
+        html += `<div class="coaching-block">
+            <div class="coaching-block-title"><i class="fas fa-arrow-trend-up me-1" style="color:var(--warning);"></i>Areas to improve</div>`;
+        coaching.improvements.forEach(i => {
+            html += `<div class="coaching-item"><div class="ci-dot ci-i"><i class="fas fa-triangle-exclamation"></i></div><span>${i}</span></div>`;
+        });
+        html += '</div>';
+    }
+
+    if (coaching.tips?.length) {
+        html += `<div class="coaching-block">
+            <div class="coaching-block-title"><i class="fas fa-lightbulb me-1" style="color:var(--primary);"></i>Tips for your real interview</div>`;
+        coaching.tips.forEach(t => {
+            html += `<div class="coaching-item"><div class="ci-dot ci-t"><i class="fas fa-lightbulb"></i></div><span>${t}</span></div>`;
+        });
+        html += '</div>';
+    }
+
+    grid.innerHTML = html || '<p class="text-muted small text-center">Great effort! Apply now to take the real interview.</p>';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>

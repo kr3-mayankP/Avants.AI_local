@@ -1,0 +1,1562 @@
+{# ----------------------------------------------------------------
+   CHANGE BLOCK: 2026-11-22
+   OLD IMPLEMENTATION - inactive snapshot from Git HEAD
+   ----------------------------------------------------------------
+{% extends "base.html" %}
+{% block title %}Post a Job{% endblock %}
+
+{% block head %}
+<style>
+    .preview-questions {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 14px 16px;
+        margin-top: 10px;
+    }
+    .preview-note { font-size: 0.78rem; color: var(--text-muted); }
+    .question-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .question-row input { flex: 1; }
+    .question-row .remove-question-btn { color: var(--text-muted); background: none; border: none; cursor: pointer; }
+    .question-row .remove-question-btn:hover { color: var(--danger); }
+    .section-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+    }
+    .section-divider {
+        border: none;
+        border-top: 1px solid var(--border);
+        margin: 24px 0;
+    }
+    .fee-notice {
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        border-radius: var(--radius);
+        padding: 12px 14px;
+        font-size: 0.8rem;
+        color: #92400e;
+        margin-bottom: 20px;
+        display: flex; align-items: flex-start; gap: 8px;
+    }
+    .fee-notice i { flex-shrink: 0; margin-top: 2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center g-4">
+    <!-- Sidebar: Completeness + JD Analyzer -->
+    <div class="col-lg-4 order-lg-2">
+        <div style="position:sticky;top:80px;z-index:10;">
+
+            <!-- Completeness checklist -->
+            <div class="card mb-3">
+                <div class="card-header fw-bold d-flex align-items-center justify-content-between" style="font-size:0.85rem;">
+                    <span><i class="fas fa-list-check me-2" style="color:var(--primary);"></i>Post Checklist</span>
+                    <span id="checklistScore" class="badge bg-secondary" style="font-size:0.7rem;">0 / 5</span>
+                </div>
+                <div class="card-body p-3">
+                    <ul class="list-unstyled mb-0" id="checklistItems" style="font-size:0.83rem;">
+                        <li id="chk-title"       class="chk-row mb-2"><i class="fas fa-circle-xmark me-2 text-danger"></i>Job title <span class="text-danger fw-semibold" style="font-size:0.72rem;">required</span></li>
+                        <li id="chk-description" class="chk-row mb-2"><i class="fas fa-circle-xmark me-2 text-danger"></i>Description <span class="text-danger fw-semibold" style="font-size:0.72rem;">required</span></li>
+                        <li id="chk-salary"      class="chk-row mb-2"><i class="fas fa-circle-xmark me-2 text-danger"></i>Pay range <span class="text-muted" style="font-size:0.75rem;">recommended</span></li>
+                        <li id="chk-focus"       class="chk-row mb-2"><i class="fas fa-circle-xmark me-2 text-danger"></i>Interview focus <span class="text-muted" style="font-size:0.75rem;">recommended</span></li>
+                        <li id="chk-questions"   class="chk-row mb-0"><i class="fas fa-circle-xmark me-2 text-danger"></i>Custom questions <span class="text-muted" style="font-size:0.75rem;">optional</span></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- JD Quality Analyzer -->
+            <div class="card">
+                <div class="card-header fw-bold" style="font-size:0.85rem;">
+                    <i class="fas fa-magnifying-glass-chart me-2" style="color:var(--primary);"></i>JD Quality Analyzer
+                </div>
+                <div class="card-body p-3">
+                    <p class="text-muted small mb-3">Let AI review your job post before you publish it.</p>
+                    <button type="button" class="btn btn-outline-primary w-100 btn-sm" id="analyzeJdBtn" onclick="analyzeJD()">
+                        <i class="fas fa-wand-magic-sparkles me-1"></i> Analyze Description
+                    </button>
+                    <div id="jdAnalysisResult" class="mt-3" style="display:none;"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="col-lg-8 order-lg-1">
+        <div class="card">
+            <div class="card-header"><i class="fas {{ 'fa-pen' if job else 'fa-plus' }} me-2"></i>{{ 'Edit Job' if job else 'Post a Job' }}</div>
+            <div class="card-body p-4">
+
+                <div class="fee-notice">
+                    <i class="fas fa-file-contract"></i>
+                    <div>
+                        <strong>15% placement fee</strong> - if you hire a candidate sourced through Avants AI for this role, a fee of 15% of first-year gross compensation applies once the candidate confirms the hire (for hourly roles, 15% of the rate annualized to a 2,080-hour work year, billed monthly for as long as the engagement is active). Candidates are never charged. See the <a href="/terms#employer-contract" target="_blank" style="color:#92400e; font-weight:600;">Employer Platform Agreement</a> for full terms.
+                    </div>
+                </div>
+
+                <form method="POST" id="postJobForm" action="{{ url_for('employer.edit_job', job_id=job.id) if job else url_for('employer.post_job') }}">
+
+                    <!-- Basics -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Job Title</label>
+                        <input type="text" class="form-control" name="title" id="jobTitle"
+                               value="{{ job.title if job else '' }}"
+                               placeholder="e.g. Senior Backend Engineer" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Work Type</label>
+                            {% set _wt = '' %}
+                            {% if job and job.location %}
+                                {% if job.location.startswith('Remote (Worldwide)') %}{% set _wt = 'Remote (Worldwide)' %}
+                                {% elif job.location.startswith('Remote (US Only)') %}{% set _wt = 'Remote (US Only)' %}
+                                {% elif job.location.startswith('Hybrid') %}{% set _wt = 'Hybrid' %}
+                                {% elif job.location.startswith('On-site') %}{% set _wt = 'On-site' %}
+                                {% else %}{% set _wt = job.location %}{% endif %}
+                            {% endif %}
+                            <select class="form-control" name="work_type" id="workType" onchange="toggleCityInput()">
+                                <option value="Remote (Worldwide)" {{ 'selected' if _wt == 'Remote (Worldwide)' }}>Remote (Worldwide)</option>
+                                <option value="Remote (US Only)"  {{ 'selected' if _wt == 'Remote (US Only)' }}>Remote (US Only)</option>
+                                <option value="Hybrid"            {{ 'selected' if _wt == 'Hybrid' }}>Hybrid</option>
+                                <option value="On-site"           {{ 'selected' if _wt == 'On-site' }}>On-site</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3" id="cityInputWrap">
+                            <label class="form-label fw-bold">City / Location</label>
+                            {% set _city = '' %}
+                            {% if job and job.location and ' - ' in job.location %}
+                                {% set _city = job.location.split(' - ', 1)[1] %}
+                            {% endif %}
+                            <input type="text" class="form-control" name="location_city" id="locationCity"
+                                   value="{{ _city }}"
+                                   placeholder="e.g. Austin, TX or London, UK">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Employment Type</label>
+                            <select class="form-control" name="employment_type">
+                                {% for opt in ['Full-time', 'Part-time', 'Contract', 'Internship'] %}
+                                    <option value="{{ opt }}" {{ 'selected' if job and job.employment_type == opt }}>{{ opt }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Category</label>
+                            <select class="form-control" name="category">
+                                {% for cat in categories %}
+                                    <option value="{{ cat }}" {{ 'selected' if job and job.category == cat }}>{{ cat }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label fw-bold">Compensation</label>
+                            <select class="form-select mb-2" name="pay_type" id="payType" onchange="updateSalaryHints()">
+                                {% set pt = job.pay_type if job and job.pay_type else 'yearly' %}
+                                <option value="yearly"   {{ 'selected' if pt == 'yearly' }}>Per year (salary)</option>
+                                <option value="hourly"   {{ 'selected' if pt == 'hourly' }}>Per hour</option>
+                                <option value="monthly"  {{ 'selected' if pt == 'monthly' }}>Per month</option>
+                                <option value="stipend"  {{ 'selected' if pt == 'stipend' }}>Stipend (fixed)</option>
+                                <option value="contract" {{ 'selected' if pt == 'contract' }}>Project / contract</option>
+                            </select>
+                            <select class="form-select mb-2" name="salary_currency" id="salaryCurrency" onchange="updateSalaryHints()">
+                                {% set cur = job.salary_currency if job and job.salary_currency else 'USD' %}
+                                {% for code, info in currencies.items() %}
+                                    <option value="{{ code }}" data-symbol="{{ info.symbol }}" {{ 'selected' if cur == code }}>{{ info.label }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="d-flex gap-2">
+                                <div class="input-group">
+                                    <span class="input-group-text" id="currencySymbolMin">{{ currencies.get(cur, currencies['USD']).symbol }}</span>
+                                    <input type="number" class="form-control" name="salary_usd" id="salaryMin" min="0" required
+                                           value="{{ job.salary_usd if job and job.salary_usd else '' }}"
+                                           placeholder="Min">
+                                </div>
+                                <div class="input-group" id="salaryMaxGroup">
+                                    <span class="input-group-text" id="currencySymbolMax">{{ currencies.get(cur, currencies['USD']).symbol }}</span>
+                                    <input type="number" class="form-control" name="salary_max_usd" id="salaryMax" min="0"
+                                           value="{{ job.salary_max_usd if job and job.salary_max_usd else '' }}"
+                                           placeholder="Max">
+                                </div>
+                            </div>
+                            <p class="preview-note mt-1" id="salaryHint"></p>
+                        </div>
+                    </div>
+
+                    {% if job %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Status</label>
+                        <select class="form-control" name="status">
+                            <option value="open" {{ 'selected' if job.status == 'open' }}>Open</option>
+                            <option value="closed" {{ 'selected' if job.status == 'closed' }}>Closed</option>
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <hr class="section-divider">
+
+                    <!-- Structured Description -->
+                    <p class="fw-bold mb-1">Job Description</p>
+                    <p class="text-muted small mb-4">Fill in the sections below. Candidates will see these exactly as shown.</p>
+
+                    <!-- Pre-populate from existing JSON or plain text -->
+                    {% set secs = job.description_sections if job else none %}
+
+                    <div class="mb-3">
+                        <div class="section-label"><i class="fas fa-info-circle me-1"></i> About the Role</div>
+                        <textarea class="form-control desc-section" id="sec_about" rows="4"
+                                  placeholder="Overview of the role, its purpose, and why it matters...">{{ secs.about if secs else (job.description if job and not secs else '') }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="section-label"><i class="fas fa-check-circle me-1"></i> Requirements <span class="text-muted fw-normal">(must have)</span></div>
+                        <textarea class="form-control desc-section" id="sec_requirements" rows="4"
+                                  placeholder="Years of experience, specific skills, certifications...">{{ secs.requirements if secs else '' }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="section-label"><i class="fas fa-star me-1"></i> Preferred <span class="text-muted fw-normal">(nice to have)</span></div>
+                        <textarea class="form-control desc-section" id="sec_preferred" rows="3"
+                                  placeholder="Advanced degree, extra tools, bonus experience...">{{ secs.preferred if secs else '' }}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="section-label"><i class="fas fa-list-check me-1"></i> What You'll Do</div>
+                        <textarea class="form-control desc-section" id="sec_what_you_do" rows="4"
+                                  placeholder="Day-to-day responsibilities and deliverables...">{{ secs.what_you_do if secs else '' }}</textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="section-label"><i class="fas fa-file-contract me-1"></i> Contract &amp; Payment Terms</div>
+                        <textarea class="form-control desc-section" id="sec_contract_terms" rows="3"
+                                  placeholder="Pay rate, payment schedule, contract type, remote details...">{{ secs.contract_terms if secs else '' }}</textarea>
+                        <p class="preview-note mt-1">
+                            <i class="fas fa-circle-info me-1"></i>
+                            Upon hire, Avants charges the company a placement fee of <strong>15% of first-year compensation</strong> (for hourly roles, 15% of the annualized rate, billed monthly). Candidates pay nothing.
+                        </p>
+                    </div>
+
+                    <!-- Hidden field that holds the JSON blob submitted to Flask -->
+                    <input type="hidden" name="description" id="descriptionField">
+
+                    <hr class="section-divider">
+
+                    <!-- AI Interview Settings -->
+                    <h6 class="fw-bold">AI Interview Settings</h6>
+                    <p class="text-muted small">Every applicant takes this AI interview before you review them. Adjust how long it runs and what it should make sure to ask.</p>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Interview Length</label>
+                        <select class="form-control" name="interview_length" id="interviewLength">
+                            {% for length in interview_lengths %}
+                                <option value="{{ length }}" {{ 'selected' if (job.interview_length if job else 'standard') == length }}>{{ length|capitalize }}</option>
+                            {% endfor %}
+                        </select>
+                        <p class="preview-note mt-1">Short: ~3-4 questions &middot; Standard: ~5-8 &middot; Thorough: ~8-12</p>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" name="camera_required" id="cameraRequired" value="1"
+                               {{ 'checked' if job and job.camera_required }}>
+                        <label class="form-check-label fw-bold" for="cameraRequired">Require camera for the AI interview</label>
+                        <p class="preview-note mt-1">Off by default - candidates can choose audio-only. Turn this on to require video so you can see the candidate during their AI interview.</p>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Guidance for the AI Interviewer (optional)</label>
+                        <textarea class="form-control" name="interview_focus" id="interviewFocus" rows="3"
+                                  placeholder="e.g. I want to know if they've shipped to production solo, not just contributed to a team effort.">{{ job.interview_focus if job else '' }}</textarea>
+                        <p class="preview-note mt-1">Topics to make sure get covered, things to listen for, or what to do if a candidate brings up something specific.</p>
+                    </div>
+
+                    <button type="button" class="btn btn-outline-primary btn-sm mb-3" id="previewQuestionsBtn">
+                        <i class="fas fa-magic"></i> {{ 'Regenerate' if job and job.interview_questions else 'Generate' }} Interview Questions
+                    </button>
+                    <div id="previewError"></div>
+                    <div class="preview-questions" id="previewQuestionsBox" style="display:{{ 'block' if job and job.interview_questions else 'none' }};">
+                        <p class="preview-note mb-2"><i class="fas fa-circle-info me-1"></i> Edit, remove, or add questions as needed. The AI will make sure to ask these, plus natural follow-ups.</p>
+                        <div id="questionsList"></div>
+                        <div class="d-flex gap-2 align-items-center flex-wrap">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="addQuestionBtn"><i class="fas fa-plus"></i> Add Question</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="recordQuestionBtn"><i class="fas fa-microphone"></i> Record Question</button>
+                            <span class="text-muted" id="recordQuestionStatus" style="font-size:0.78rem;"></span>
+                        </div>
+                    </div>
+                    <input type="hidden" name="interview_questions" id="interviewQuestionsField">
+
+                    <div class="d-flex gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary flex-grow-1">
+                            {% if job and job.status == 'draft' %}Publish Job{% elif job %}Save Changes{% else %}Post Job{% endif %}
+                        </button>
+                        <button type="submit" name="save_as_draft" value="1" formnovalidate class="btn btn-outline-secondary">
+                            <i class="fas fa-floppy-disk me-1"></i> Save Draft
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const existingQuestions = {{ interview_questions|tojson }};
+const questionsList = document.getElementById("questionsList");
+
+function buildDescriptionJSON() {
+    return JSON.stringify({
+        about:          document.getElementById("sec_about").value.trim(),
+        requirements:   document.getElementById("sec_requirements").value.trim(),
+        preferred:      document.getElementById("sec_preferred").value.trim(),
+        what_you_do:    document.getElementById("sec_what_you_do").value.trim(),
+        contract_terms: document.getElementById("sec_contract_terms").value.trim(),
+    });
+}
+
+function buildDescriptionText() {
+    const sections = [
+        ["About the Role",            document.getElementById("sec_about").value.trim()],
+        ["Requirements",              document.getElementById("sec_requirements").value.trim()],
+        ["Preferred Qualifications",  document.getElementById("sec_preferred").value.trim()],
+        ["What You'll Do",            document.getElementById("sec_what_you_do").value.trim()],
+        ["Contract & Payment Terms",  document.getElementById("sec_contract_terms").value.trim()],
+    ];
+    return sections.filter(([_, v]) => v).map(([label, v]) => `${label}:\n${v}`).join("\n\n");
+}
+
+function addQuestionRow(text) {
+    const row = document.createElement("div");
+    row.className = "question-row";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "form-control question-input";
+    input.placeholder = "Interview question";
+    input.value = text;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "remove-question-btn";
+    removeBtn.title = "Remove";
+    removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+    removeBtn.addEventListener("click", () => { row.remove(); scheduleDraftSave(); });
+
+    row.appendChild(input);
+    row.appendChild(removeBtn);
+    questionsList.appendChild(row);
+    scheduleDraftSave();
+}
+
+// ── Auto-save/restore so a reload doesn't lose unsaved work ─────────────
+const draftKey = "avants_job_draft_{{ job.id if job else 'new' }}";
+let restoringDraft = false;
+let formSubmitted = false;
+let draftSaveTimer = null;
+
+function scheduleDraftSave() {
+    if (restoringDraft || formSubmitted) return;
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = setTimeout(saveDraft, 400);
+}
+
+function collectDraft() {
+    return {
+        title: document.getElementById('jobTitle')?.value ?? '',
+        work_type: document.getElementById('workType')?.value ?? '',
+        location_city: document.getElementById('locationCity')?.value ?? '',
+        employment_type: document.querySelector('[name=employment_type]')?.value ?? '',
+        category: document.querySelector('[name=category]')?.value ?? '',
+        pay_type: document.getElementById('payType')?.value ?? '',
+        salary_currency: document.getElementById('salaryCurrency')?.value ?? '',
+        salary_usd: document.getElementById('salaryMin')?.value ?? '',
+        salary_max_usd: document.getElementById('salaryMax')?.value ?? '',
+        status: document.querySelector('[name=status]')?.value ?? '',
+        sections: {
+            about: document.getElementById('sec_about')?.value ?? '',
+            requirements: document.getElementById('sec_requirements')?.value ?? '',
+            preferred: document.getElementById('sec_preferred')?.value ?? '',
+            what_you_do: document.getElementById('sec_what_you_do')?.value ?? '',
+            contract_terms: document.getElementById('sec_contract_terms')?.value ?? '',
+        },
+        interview_length: document.getElementById('interviewLength')?.value ?? '',
+        camera_required: document.getElementById('cameraRequired')?.checked ?? false,
+        interview_focus: document.getElementById('interviewFocus')?.value ?? '',
+        questions: Array.from(document.querySelectorAll('.question-input')).map(i => i.value),
+        savedAt: Date.now(),
+    };
+}
+
+function saveDraft() {
+    try { localStorage.setItem(draftKey, JSON.stringify(collectDraft())); } catch (_) { /* storage unavailable - not critical */ }
+}
+
+function applyDraft(draft) {
+    restoringDraft = true;
+    if (draft.title !== undefined) document.getElementById('jobTitle').value = draft.title;
+    if (draft.work_type) { document.getElementById('workType').value = draft.work_type; toggleCityInput(); }
+    if (draft.location_city !== undefined) document.getElementById('locationCity').value = draft.location_city;
+    const empEl = document.querySelector('[name=employment_type]');
+    if (empEl && draft.employment_type) empEl.value = draft.employment_type;
+    const catEl = document.querySelector('[name=category]');
+    if (catEl && draft.category) catEl.value = draft.category;
+    if (draft.pay_type) document.getElementById('payType').value = draft.pay_type;
+    if (draft.salary_currency) document.getElementById('salaryCurrency').value = draft.salary_currency;
+    if (draft.salary_usd !== undefined) document.getElementById('salaryMin').value = draft.salary_usd;
+    if (draft.salary_max_usd !== undefined) document.getElementById('salaryMax').value = draft.salary_max_usd;
+    const statusEl = document.querySelector('[name=status]');
+    if (statusEl && draft.status) statusEl.value = draft.status;
+    if (draft.sections) {
+        document.getElementById('sec_about').value = draft.sections.about ?? '';
+        document.getElementById('sec_requirements').value = draft.sections.requirements ?? '';
+        document.getElementById('sec_preferred').value = draft.sections.preferred ?? '';
+        document.getElementById('sec_what_you_do').value = draft.sections.what_you_do ?? '';
+        document.getElementById('sec_contract_terms').value = draft.sections.contract_terms ?? '';
+    }
+    if (draft.interview_length) document.getElementById('interviewLength').value = draft.interview_length;
+    if (draft.camera_required !== undefined) document.getElementById('cameraRequired').checked = !!draft.camera_required;
+    if (draft.interview_focus !== undefined) document.getElementById('interviewFocus').value = draft.interview_focus;
+    if (Array.isArray(draft.questions)) {
+        questionsList.innerHTML = '';
+        draft.questions.forEach(addQuestionRow);
+        document.getElementById('previewQuestionsBox').style.display = draft.questions.length ? 'block' : 'none';
+    }
+    updateSalaryHints();
+    updateChecklist();
+    restoringDraft = false;
+}
+
+const DRAFT_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+function restoreDraftIfAny() {
+    let raw;
+    try { raw = localStorage.getItem(draftKey); } catch (_) { return; }
+    if (!raw) return;
+    let draft;
+    try { draft = JSON.parse(raw); } catch (_) { localStorage.removeItem(draftKey); return; }
+
+    // A draft this old is almost certainly a leftover from a job that was
+    // already successfully posted or saved earlier, not unsaved work from
+    // a failed submission moments ago - quietly drop it instead of
+    // resurrecting old content on someone's next new job.
+    if (draft.savedAt && Date.now() - draft.savedAt > DRAFT_MAX_AGE_MS) {
+        try { localStorage.removeItem(draftKey); } catch (_) { /* not critical */ }
+        return;
+    }
+
+    applyDraft(draft);
+
+    const banner = document.createElement('div');
+    banner.className = 'alert alert-info d-flex justify-content-between align-items-center py-2 mb-3';
+    banner.style.fontSize = '0.82rem';
+    banner.innerHTML = '<span><i class="fas fa-clock-rotate-left me-1"></i> Restored your unsaved changes from before the reload.</span>';
+    const discardBtn = document.createElement('button');
+    discardBtn.type = 'button';
+    discardBtn.className = 'btn btn-sm btn-outline-secondary';
+    discardBtn.textContent = 'Discard & start fresh';
+    discardBtn.onclick = () => { localStorage.removeItem(draftKey); location.reload(); };
+    banner.appendChild(discardBtn);
+    document.getElementById('postJobForm').prepend(banner);
+}
+
+existingQuestions.forEach(addQuestionRow);
+
+document.getElementById("addQuestionBtn").addEventListener("click", () => addQuestionRow(""));
+
+// ── Record a custom question by voice ────────────────────────────────────
+let questionRecorder = null;
+let questionChunks = [];
+let isRecordingQuestion = false;
+let questionMimeType = '';
+
+function extFromMimeType(type) {
+    if (type.includes('mp4')) return 'mp4';
+    if (type.includes('ogg')) return 'ogg';
+    return 'webm';
+}
+
+function describeMediaError(e, deviceLabel) {
+    switch (e.name) {
+        case 'NotAllowedError':
+        case 'SecurityError':
+            return `${deviceLabel} access was blocked. Check your browser's permission icon in the address bar, and also check your system's privacy settings - on Windows: Settings → Privacy & Security → Camera/Microphone; on Mac: System Settings → Privacy & Security → Camera/Microphone.`;
+        case 'NotFoundError':
+        case 'OverconstrainedError':
+            return `No working ${deviceLabel.toLowerCase()} was found on this device.`;
+        case 'NotReadableError':
+        case 'TrackStartError':
+            return `Your ${deviceLabel.toLowerCase()} is already in use by another app (on Windows, this can also happen with Windows Hello's camera lock).`;
+        default:
+            return `${deviceLabel} access failed (${e.name || 'unknown error'}).`;
+    }
+}
+
+document.getElementById("recordQuestionBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("recordQuestionBtn");
+    const status = document.getElementById("recordQuestionStatus");
+
+    if (isRecordingQuestion) {
+        questionRecorder.stop();
+        return;
+    }
+
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+        status.textContent = describeMediaError(e, "Microphone");
+        return;
+    }
+
+    // Safari (desktop and iOS) doesn't support webm at all - fall back to
+    // mp4 explicitly instead of "" (browser default), so the actual
+    // recorded format is always known for the Blob type / upload below.
+    const candidates = ['audio/webm', 'audio/mp4'];
+    const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t)) || '';
+    questionMimeType = mimeType || 'audio/webm';
+    questionRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    questionChunks = [];
+    questionRecorder.addEventListener('dataavailable', e => questionChunks.push(e.data));
+    questionRecorder.addEventListener('stop', async () => {
+        stream.getTracks().forEach(t => t.stop());
+        isRecordingQuestion = false;
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-outline-secondary');
+        btn.innerHTML = '<i class="fas fa-microphone"></i> Record Question';
+        btn.disabled = true;
+        status.textContent = "Transcribing…";
+
+        const blob = new Blob(questionChunks, { type: questionMimeType || 'audio/webm' });
+        const fd = new FormData();
+        fd.append('audio', blob, `question.${extFromMimeType(blob.type)}`);
+
+        try {
+            const res = await fetch("{{ url_for('employer.transcribe_question') }}", { method: 'POST', body: fd });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Transcription failed.");
+            addQuestionRow(data.text);
+            status.textContent = "Added below - edit if needed.";
+        } catch (e) {
+            status.textContent = e.message;
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    questionRecorder.start();
+    isRecordingQuestion = true;
+    btn.classList.remove('btn-outline-secondary');
+    btn.classList.add('btn-danger');
+    btn.innerHTML = '<i class="fas fa-stop"></i> Stop Recording';
+    status.textContent = "Recording… click Stop when done.";
+});
+
+document.getElementById("previewQuestionsBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("previewQuestionsBtn");
+    const title = document.getElementById("jobTitle").value.trim();
+    const descText = buildDescriptionText();
+    const interviewLength = document.getElementById("interviewLength").value;
+    const interviewFocus = document.getElementById("interviewFocus").value.trim();
+    const errorEl = document.getElementById("previewError");
+
+    errorEl.innerHTML = "";
+    if (!title || !descText) {
+        errorEl.innerHTML = '<div class="error-message" style="color:var(--danger);background:var(--danger-soft);padding:10px 14px;border-radius:var(--radius);">Fill in the job title and at least one description section first.</div>';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+
+    try {
+        const response = await fetch("/employer/preview-interview-questions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, description: descText, interview_length: interviewLength, interview_focus: interviewFocus })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Failed to generate questions.");
+
+        questionsList.innerHTML = "";
+        result.questions.forEach(addQuestionRow);
+        document.getElementById("previewQuestionsBox").style.display = "block";
+    } catch (e) {
+        errorEl.innerHTML = `<div class="error-message" style="color:var(--danger);background:var(--danger-soft);padding:10px 14px;border-radius:var(--radius);">${e.message}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-magic"></i> Regenerate Interview Questions';
+    }
+});
+
+async function analyzeJD() {
+    const btn = document.getElementById("analyzeJdBtn");
+    const resultEl = document.getElementById("jdAnalysisResult");
+    const title = document.getElementById("jobTitle").value.trim();
+    if (!title) {
+        resultEl.innerHTML = '<p class="text-danger small">Enter a job title first.</p>';
+        resultEl.style.display = 'block';
+        return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Analyzing...';
+    resultEl.style.display = 'none';
+
+    try {
+        const secs = JSON.parse(buildDescriptionJSON());
+        const r = await fetch("{{ url_for('employer.analyze_jd') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title,
+                about: secs.about || '',
+                requirements: secs.requirements || '',
+                preferred: secs.preferred || '',
+                what_you_do: secs.what_you_do || '',
+                contract_terms: secs.contract_terms || '',
+                salary_usd: document.querySelector('[name=salary_usd]').value || '',
+                category: document.querySelector('[name=category]').value || '',
+            }),
+        });
+        const data = await r.json();
+        if (data.error) throw new Error(data.error);
+
+        const score = data.score;
+        const color = score >= 80 ? 'var(--success)' : score >= 60 ? 'var(--warning)' : 'var(--danger)';
+        const levelColor = { error: 'var(--danger)', warning: 'var(--warning)', tip: 'var(--primary)' };
+
+        resultEl.innerHTML = `
+            <div style="text-align:center;margin-bottom:12px;">
+                <span style="font-size:2rem;font-weight:800;color:${color};">${score}</span>
+                <span style="font-size:0.8rem;color:var(--text-muted);display:block;">Quality Score</span>
+            </div>
+            <div style="font-size:0.8rem;">
+                ${data.issues.map(i => `
+                    <div style="display:flex;gap:6px;margin-bottom:8px;align-items:flex-start;">
+                        <i class="fas fa-circle" style="flex-shrink:0;font-size:0.5rem;margin-top:5px;color:${levelColor[i.level] || levelColor.tip};"></i>
+                        <span style="color:var(--text);">${i.text}</span>
+                    </div>
+                `).join('')}
+            </div>`;
+        resultEl.style.display = 'block';
+    } catch (e) {
+        resultEl.innerHTML = '<p class="text-danger small">Analysis failed. Please try again.</p>';
+        resultEl.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i> Analyze Again';
+    }
+}
+
+document.getElementById("postJobForm").addEventListener("submit", () => {
+    document.getElementById("descriptionField").value = buildDescriptionJSON();
+    const questions = Array.from(document.querySelectorAll(".question-input"))
+        .map(input => input.value.trim())
+        .filter(text => text);
+    document.getElementById("interviewQuestionsField").value = JSON.stringify(questions);
+
+    // Deliberately NOT clearing the draft here: this fires the instant the
+    // button is clicked, before the server has validated anything. If a
+    // required field is missing, the server re-renders this same page with
+    // a flash error and nothing saved - clearing eagerly would have already
+    // destroyed the only copy of what they typed, right before the page
+    // that needed to restore it reloads. A successful submission navigates
+    // away to the dashboard, so the leftover draft only matters again if
+    // they start another new job later - restoreDraftIfAny()'s staleness
+    // check handles that case instead of trying to signal success across
+    // the redirect.
+    formSubmitted = true;
+    clearTimeout(draftSaveTimer);
+});
+
+const PAY_CONFIG = {
+    yearly:   { step: 1000, minPh: 'e.g. 80000', maxPh: 'e.g. 120000', hint: 'Displayed as {sym}80K–{sym}120K/yr', showMax: true },
+    hourly:   { step: 1,    minPh: 'e.g. 25',    maxPh: 'e.g. 40',     hint: 'Displayed as {sym}25–{sym}40/hr',    showMax: true },
+    monthly:  { step: 100,  minPh: 'e.g. 5000',  maxPh: 'e.g. 8000',   hint: 'Displayed as {sym}5K–{sym}8K/mo',   showMax: true },
+    stipend:  { step: 100,  minPh: 'e.g. 2000',  maxPh: '',            hint: 'Displayed as {sym}2K stipend',   showMax: false },
+    contract: { step: 1000, minPh: 'e.g. 10000', maxPh: 'e.g. 20000',  hint: 'Displayed as {sym}10K–{sym}20K (project)', showMax: true },
+};
+
+function currentCurrencySymbol() {
+    const sel = document.getElementById('salaryCurrency');
+    const opt = sel && sel.selectedOptions[0];
+    return (opt && opt.dataset.symbol) || '$';
+}
+
+function updateSalaryHints() {
+    const pt = document.getElementById('payType').value;
+    const cfg = PAY_CONFIG[pt] || PAY_CONFIG.yearly;
+    const sym = currentCurrencySymbol();
+    const minInput = document.getElementById('salaryMin');
+    const maxInput = document.getElementById('salaryMax');
+    const maxGroup = document.getElementById('salaryMaxGroup');
+    minInput.step = cfg.step;
+    minInput.placeholder = cfg.minPh;
+    maxInput.placeholder = cfg.maxPh;
+    maxGroup.style.display = cfg.showMax ? '' : 'none';
+    document.getElementById('currencySymbolMin').textContent = sym;
+    document.getElementById('currencySymbolMax').textContent = sym;
+
+    const minVal = parseFloat(minInput.value);
+    const maxVal = parseFloat(maxInput.value);
+    const hintEl = document.getElementById('salaryHint');
+    if (minVal) {
+        const fmt = n => (n >= 1000 && pt !== 'hourly') ? `${sym}${Math.round(n / 1000)}K` : `${sym}${Number(n).toLocaleString()}`;
+        const sfx = { yearly: '/yr', hourly: '/hr', monthly: '/mo', stipend: ' stipend', contract: ' (project)' }[pt] || '/yr';
+        let preview = fmt(minVal);
+        if (maxVal && maxVal > minVal && cfg.showMax) preview += `–${fmt(maxVal)}`;
+        hintEl.textContent = `Will display as: ${preview}${sfx}`;
+        hintEl.style.color = 'var(--primary)';
+    } else {
+        hintEl.textContent = cfg.hint.replaceAll('{sym}', sym);
+        hintEl.style.color = '';
+    }
+    updateChecklist();
+}
+
+updateSalaryHints();
+
+function toggleCityInput() {
+    const wt = document.getElementById('workType').value;
+    const wrap = document.getElementById('cityInputWrap');
+    const needsCity = wt === 'Hybrid' || wt === 'On-site';
+    wrap.style.display = needsCity ? '' : 'none';
+    document.getElementById('locationCity').required = needsCity;
+}
+toggleCityInput();
+
+// ── Post checklist ──────────────────────────────────────────────────────
+function updateChecklist() {
+    const checks = [
+        { id: 'chk-title',     ok: !!document.getElementById('jobTitle')?.value.trim() },
+        { id: 'chk-description', ok: !!(buildDescriptionText().trim()) },
+        { id: 'chk-salary',    ok: !!(document.getElementById('salaryMin')?.value.trim()) },
+        { id: 'chk-focus',     ok: !!(document.getElementById('interviewFocus')?.value.trim()) },
+        { id: 'chk-questions', ok: document.querySelectorAll('.question-input').length > 0 },
+    ];
+    let done = 0;
+    checks.forEach(({ id, ok }) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const icon = el.querySelector('i');
+        if (ok) {
+            icon.className = 'fas fa-circle-check me-2 text-success';
+            done++;
+        } else {
+            icon.className = 'fas fa-circle-xmark me-2 text-danger';
+        }
+    });
+    const score = document.getElementById('checklistScore');
+    score.textContent = `${done} / ${checks.length}`;
+    score.className = done === checks.length ? 'badge bg-success' : done >= 2 ? 'badge bg-warning text-dark' : 'badge bg-secondary';
+}
+
+// Hook into form inputs
+const jobTitleEl = document.getElementById('jobTitle');
+if (jobTitleEl) jobTitleEl.addEventListener('input', updateChecklist);
+// Salary inputs drive updateSalaryHints which calls updateChecklist
+['salaryMin','salaryMax'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateSalaryHints);
+});
+// Description is built from textareas
+document.querySelectorAll('.desc-section').forEach(ta => ta.addEventListener('input', updateChecklist));
+// Interview focus
+const focusEl = document.getElementById('interviewFocus');
+if (focusEl) focusEl.addEventListener('input', updateChecklist);
+// "Add question" button also triggers a checklist update
+document.getElementById('addQuestionBtn').addEventListener('click', () => setTimeout(updateChecklist, 0));
+
+updateChecklist();
+
+// Any edit anywhere in the form schedules an auto-save (debounced), so a
+// reload never loses what was typed. select/checkbox changes fire 'change'
+// rather than 'input' in some browsers, so listen for both.
+document.getElementById('postJobForm').addEventListener('input', scheduleDraftSave);
+document.getElementById('postJobForm').addEventListener('change', scheduleDraftSave);
+
+restoreDraftIfAny();
+</script>
+{% endblock %}
+
+   ---------------------------------------------------------------- #}
+{# ----------------------------------------------------------------
+   NEW IMPLEMENTATION - active code starts below
+   ---------------------------------------------------------------- #}
+{% extends "base.html" %}
+{% block title %}Post a Job{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/post_job.css') }}?v=20261122">
+{% endblock %}
+
+{% block content %}
+{% include "_partials/post_job_content.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const existingQuestions = {{ interview_questions|tojson }};
+const questionsList = document.getElementById("questionsList");
+
+function buildDescriptionJSON() {
+    return JSON.stringify({
+        about:          document.getElementById("sec_about").value.trim(),
+        requirements:   document.getElementById("sec_requirements").value.trim(),
+        preferred:      document.getElementById("sec_preferred").value.trim(),
+        what_you_do:    document.getElementById("sec_what_you_do").value.trim(),
+        contract_terms: document.getElementById("sec_contract_terms").value.trim(),
+        experience_level: document.getElementById("experienceLevel")?.value || '',
+        experience_min: document.getElementById("experienceMin")?.value || '',
+        experience_max: document.getElementById("experienceMax")?.value || '',
+        education: document.getElementById("educationLevel")?.value || '',
+        certifications: document.getElementById("certifications")?.value || '',
+        required_skills: Array.from(document.querySelectorAll("#requiredSkills .job-chip")).map(el => el.firstChild.textContent.trim()),
+        preferred_skills: Array.from(document.querySelectorAll("#preferredSkills .job-chip")).map(el => el.firstChild.textContent.trim()),
+        benefits: Array.from(document.querySelectorAll(".job-benefits input:checked")).map(el => el.value),
+        salary_visible: document.getElementById("salaryVisible")?.checked ?? true,
+        interview_rounds: document.getElementById("interviewRounds")?.value || '',
+        resume_screening: document.getElementById("enableResumeScreening")?.checked ?? true,
+        ai_interview: document.getElementById("enableAiInterview")?.checked ?? true,
+    });
+}
+
+function buildDescriptionText() {
+    const sections = [
+        ["About the Role",            document.getElementById("sec_about").value.trim()],
+        ["Requirements",              document.getElementById("sec_requirements").value.trim()],
+        ["Preferred Qualifications",  document.getElementById("sec_preferred").value.trim()],
+        ["What You'll Do",            document.getElementById("sec_what_you_do").value.trim()],
+        ["Contract & Payment Terms",  document.getElementById("sec_contract_terms").value.trim()],
+    ];
+    return sections.filter(([_, v]) => v).map(([label, v]) => `${label}:\n${v}`).join("\n\n");
+}
+
+function addQuestionRow(text) {
+    const row = document.createElement("div");
+    row.className = "question-row";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "form-control question-input";
+    input.placeholder = "Interview question";
+    input.value = text;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "remove-question-btn";
+    removeBtn.title = "Remove";
+    removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+    removeBtn.addEventListener("click", () => { row.remove(); scheduleDraftSave(); });
+
+    row.appendChild(input);
+    row.appendChild(removeBtn);
+    questionsList.appendChild(row);
+    scheduleDraftSave();
+}
+
+// ── Auto-save/restore so a reload doesn't lose unsaved work ─────────────
+const draftKey = "avants_job_draft_{{ job.id if job else 'new' }}";
+let restoringDraft = false;
+let formSubmitted = false;
+let draftSaveTimer = null;
+
+function scheduleDraftSave() {
+    if (restoringDraft || formSubmitted) return;
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = setTimeout(saveDraft, 400);
+}
+
+function collectDraft() {
+    return {
+        title: document.getElementById('jobTitle')?.value ?? '',
+        work_type: document.getElementById('workType')?.value ?? '',
+        location_city: document.getElementById('locationCity')?.value ?? '',
+        employment_type: document.querySelector('[name=employment_type]')?.value ?? '',
+        category: document.querySelector('[name=category]')?.value ?? '',
+        pay_type: document.getElementById('payType')?.value ?? '',
+        salary_currency: document.getElementById('salaryCurrency')?.value ?? '',
+        salary_usd: document.getElementById('salaryMin')?.value ?? '',
+        salary_max_usd: document.getElementById('salaryMax')?.value ?? '',
+        status: document.querySelector('[name=status]')?.value ?? '',
+        sections: {
+            about: document.getElementById('sec_about')?.value ?? '',
+            requirements: document.getElementById('sec_requirements')?.value ?? '',
+            preferred: document.getElementById('sec_preferred')?.value ?? '',
+            what_you_do: document.getElementById('sec_what_you_do')?.value ?? '',
+            contract_terms: document.getElementById('sec_contract_terms')?.value ?? '',
+        },
+        interview_length: document.getElementById('interviewLength')?.value ?? '',
+        camera_required: document.getElementById('cameraRequired')?.checked ?? false,
+        interview_focus: document.getElementById('interviewFocus')?.value ?? '',
+        questions: Array.from(document.querySelectorAll('.question-input')).map(i => i.value),
+        savedAt: Date.now(),
+    };
+}
+
+function saveDraft() {
+    try { localStorage.setItem(draftKey, JSON.stringify(collectDraft())); } catch (_) { /* storage unavailable - not critical */ }
+}
+
+function applyDraft(draft) {
+    restoringDraft = true;
+    if (draft.title !== undefined) document.getElementById('jobTitle').value = draft.title;
+    if (draft.work_type) { document.getElementById('workType').value = draft.work_type; toggleCityInput(); }
+    if (draft.location_city !== undefined) document.getElementById('locationCity').value = draft.location_city;
+    const empEl = document.querySelector('[name=employment_type]');
+    if (empEl && draft.employment_type) empEl.value = draft.employment_type;
+    const catEl = document.querySelector('[name=category]');
+    if (catEl && draft.category) catEl.value = draft.category;
+    if (draft.pay_type) document.getElementById('payType').value = draft.pay_type;
+    if (draft.salary_currency) document.getElementById('salaryCurrency').value = draft.salary_currency;
+    if (draft.salary_usd !== undefined) document.getElementById('salaryMin').value = draft.salary_usd;
+    if (draft.salary_max_usd !== undefined) document.getElementById('salaryMax').value = draft.salary_max_usd;
+    const statusEl = document.querySelector('[name=status]');
+    if (statusEl && draft.status) statusEl.value = draft.status;
+    if (draft.sections) {
+        document.getElementById('sec_about').value = draft.sections.about ?? '';
+        document.getElementById('sec_requirements').value = draft.sections.requirements ?? '';
+        document.getElementById('sec_preferred').value = draft.sections.preferred ?? '';
+        document.getElementById('sec_what_you_do').value = draft.sections.what_you_do ?? '';
+        document.getElementById('sec_contract_terms').value = draft.sections.contract_terms ?? '';
+    }
+    if (draft.interview_length) document.getElementById('interviewLength').value = draft.interview_length;
+    if (draft.camera_required !== undefined) document.getElementById('cameraRequired').checked = !!draft.camera_required;
+    if (draft.interview_focus !== undefined) document.getElementById('interviewFocus').value = draft.interview_focus;
+    if (Array.isArray(draft.questions)) {
+        questionsList.innerHTML = '';
+        draft.questions.forEach(addQuestionRow);
+        document.getElementById('previewQuestionsBox').style.display = draft.questions.length ? 'block' : 'none';
+    }
+    updateSalaryHints();
+    updateChecklist();
+    restoringDraft = false;
+}
+
+const DRAFT_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+function restoreDraftIfAny() {
+    let raw;
+    try { raw = localStorage.getItem(draftKey); } catch (_) { return; }
+    if (!raw) return;
+    let draft;
+    try { draft = JSON.parse(raw); } catch (_) { localStorage.removeItem(draftKey); return; }
+
+    // A draft this old is almost certainly a leftover from a job that was
+    // already successfully posted or saved earlier, not unsaved work from
+    // a failed submission moments ago - quietly drop it instead of
+    // resurrecting old content on someone's next new job.
+    if (draft.savedAt && Date.now() - draft.savedAt > DRAFT_MAX_AGE_MS) {
+        try { localStorage.removeItem(draftKey); } catch (_) { /* not critical */ }
+        return;
+    }
+
+    applyDraft(draft);
+
+    const banner = document.createElement('div');
+    banner.className = 'alert alert-info d-flex justify-content-between align-items-center py-2 mb-3';
+    banner.style.fontSize = '0.82rem';
+    banner.innerHTML = '<span><i class="fas fa-clock-rotate-left me-1"></i> Restored your unsaved changes from before the reload.</span>';
+    const discardBtn = document.createElement('button');
+    discardBtn.type = 'button';
+    discardBtn.className = 'btn btn-sm btn-outline-secondary';
+    discardBtn.textContent = 'Discard & start fresh';
+    discardBtn.onclick = () => { localStorage.removeItem(draftKey); location.reload(); };
+    banner.appendChild(discardBtn);
+    document.getElementById('postJobForm').prepend(banner);
+}
+
+existingQuestions.forEach(addQuestionRow);
+
+document.getElementById("addQuestionBtn").addEventListener("click", () => addQuestionRow(""));
+
+// ── Record a custom question by voice ────────────────────────────────────
+let questionRecorder = null;
+let questionChunks = [];
+let isRecordingQuestion = false;
+let questionMimeType = '';
+
+function extFromMimeType(type) {
+    if (type.includes('mp4')) return 'mp4';
+    if (type.includes('ogg')) return 'ogg';
+    return 'webm';
+}
+
+function describeMediaError(e, deviceLabel) {
+    switch (e.name) {
+        case 'NotAllowedError':
+        case 'SecurityError':
+            return `${deviceLabel} access was blocked. Check your browser's permission icon in the address bar, and also check your system's privacy settings - on Windows: Settings → Privacy & Security → Camera/Microphone; on Mac: System Settings → Privacy & Security → Camera/Microphone.`;
+        case 'NotFoundError':
+        case 'OverconstrainedError':
+            return `No working ${deviceLabel.toLowerCase()} was found on this device.`;
+        case 'NotReadableError':
+        case 'TrackStartError':
+            return `Your ${deviceLabel.toLowerCase()} is already in use by another app (on Windows, this can also happen with Windows Hello's camera lock).`;
+        default:
+            return `${deviceLabel} access failed (${e.name || 'unknown error'}).`;
+    }
+}
+
+const recordQuestionBtn = document.getElementById("recordQuestionBtn");
+if (recordQuestionBtn) recordQuestionBtn.addEventListener("click", async () => {
+    const btn = recordQuestionBtn;
+    const status = document.getElementById("recordQuestionStatus");
+
+    if (isRecordingQuestion) {
+        questionRecorder.stop();
+        return;
+    }
+
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+        status.textContent = describeMediaError(e, "Microphone");
+        return;
+    }
+
+    // Safari (desktop and iOS) doesn't support webm at all - fall back to
+    // mp4 explicitly instead of "" (browser default), so the actual
+    // recorded format is always known for the Blob type / upload below.
+    const candidates = ['audio/webm', 'audio/mp4'];
+    const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t)) || '';
+    questionMimeType = mimeType || 'audio/webm';
+    questionRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    questionChunks = [];
+    questionRecorder.addEventListener('dataavailable', e => questionChunks.push(e.data));
+    questionRecorder.addEventListener('stop', async () => {
+        stream.getTracks().forEach(t => t.stop());
+        isRecordingQuestion = false;
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-outline-secondary');
+        btn.innerHTML = '<i class="fas fa-microphone"></i> Record Question';
+        btn.disabled = true;
+        status.textContent = "Transcribing…";
+
+        const blob = new Blob(questionChunks, { type: questionMimeType || 'audio/webm' });
+        const fd = new FormData();
+        fd.append('audio', blob, `question.${extFromMimeType(blob.type)}`);
+
+        try {
+            const res = await fetch("{{ url_for('employer.transcribe_question') }}", { method: 'POST', body: fd });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Transcription failed.");
+            addQuestionRow(data.text);
+            status.textContent = "Added below - edit if needed.";
+        } catch (e) {
+            status.textContent = e.message;
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    questionRecorder.start();
+    isRecordingQuestion = true;
+    btn.classList.remove('btn-outline-secondary');
+    btn.classList.add('btn-danger');
+    btn.innerHTML = '<i class="fas fa-stop"></i> Stop Recording';
+    status.textContent = "Recording… click Stop when done.";
+});
+
+document.getElementById("previewQuestionsBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("previewQuestionsBtn");
+    const title = document.getElementById("jobTitle").value.trim();
+    const descText = buildDescriptionText();
+    const interviewLength = document.getElementById("interviewLength").value;
+    const interviewFocus = document.getElementById("interviewFocus").value.trim();
+    const errorEl = document.getElementById("previewError");
+
+    errorEl.innerHTML = "";
+    if (!title || !descText) {
+        errorEl.innerHTML = '<div class="error-message" style="color:var(--danger);background:var(--danger-soft);padding:10px 14px;border-radius:var(--radius);">Fill in the job title and at least one description section first.</div>';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+
+    try {
+        const response = await fetch("/employer/preview-interview-questions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, description: descText, interview_length: interviewLength, interview_focus: interviewFocus })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Failed to generate questions.");
+
+        questionsList.innerHTML = "";
+        result.questions.forEach(addQuestionRow);
+        document.getElementById("previewQuestionsBox").style.display = "block";
+    } catch (e) {
+        errorEl.innerHTML = `<div class="error-message" style="color:var(--danger);background:var(--danger-soft);padding:10px 14px;border-radius:var(--radius);">${e.message}</div>`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-magic"></i> Regenerate Interview Questions';
+    }
+});
+
+async function analyzeJD() {
+    const btn = document.getElementById("analyzeJdBtn");
+    const resultEl = document.getElementById("jdAnalysisResult");
+    const title = document.getElementById("jobTitle").value.trim();
+    if (!title) {
+        resultEl.innerHTML = '<p class="text-danger small">Enter a job title first.</p>';
+        resultEl.style.display = 'block';
+        return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Analyzing...';
+    resultEl.style.display = 'none';
+
+    try {
+        const secs = JSON.parse(buildDescriptionJSON());
+        const r = await fetch("{{ url_for('employer.analyze_jd') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title,
+                about: secs.about || '',
+                requirements: secs.requirements || '',
+                preferred: secs.preferred || '',
+                what_you_do: secs.what_you_do || '',
+                contract_terms: secs.contract_terms || '',
+                salary_usd: document.querySelector('[name=salary_usd]').value || '',
+                category: document.querySelector('[name=category]').value || '',
+            }),
+        });
+        const data = await r.json();
+        if (data.error) throw new Error(data.error);
+
+        const score = data.score;
+        const color = score >= 80 ? 'var(--success)' : score >= 60 ? 'var(--warning)' : 'var(--danger)';
+        const levelColor = { error: 'var(--danger)', warning: 'var(--warning)', tip: 'var(--primary)' };
+
+        resultEl.innerHTML = `
+            <div style="text-align:center;margin-bottom:12px;">
+                <span style="font-size:2rem;font-weight:800;color:${color};">${score}</span>
+                <span style="font-size:0.8rem;color:var(--text-muted);display:block;">Quality Score</span>
+            </div>
+            <div style="font-size:0.8rem;">
+                ${data.issues.map(i => `
+                    <div style="display:flex;gap:6px;margin-bottom:8px;align-items:flex-start;">
+                        <i class="fas fa-circle" style="flex-shrink:0;font-size:0.5rem;margin-top:5px;color:${levelColor[i.level] || levelColor.tip};"></i>
+                        <span style="color:var(--text);">${i.text}</span>
+                    </div>
+                `).join('')}
+            </div>`;
+        resultEl.style.display = 'block';
+    } catch (e) {
+        resultEl.innerHTML = '<p class="text-danger small">Analysis failed. Please try again.</p>';
+        resultEl.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i> Analyze Again';
+    }
+}
+
+document.getElementById("postJobForm").addEventListener("submit", () => {
+    document.getElementById("descriptionField").value = buildDescriptionJSON();
+    const questions = Array.from(document.querySelectorAll(".question-input"))
+        .map(input => input.value.trim())
+        .filter(text => text);
+    document.getElementById("interviewQuestionsField").value = JSON.stringify(questions);
+
+    // Deliberately NOT clearing the draft here: this fires the instant the
+    // button is clicked, before the server has validated anything. If a
+    // required field is missing, the server re-renders this same page with
+    // a flash error and nothing saved - clearing eagerly would have already
+    // destroyed the only copy of what they typed, right before the page
+    // that needed to restore it reloads. A successful submission navigates
+    // away to the dashboard, so the leftover draft only matters again if
+    // they start another new job later - restoreDraftIfAny()'s staleness
+    // check handles that case instead of trying to signal success across
+    // the redirect.
+    formSubmitted = true;
+    clearTimeout(draftSaveTimer);
+});
+
+const PAY_CONFIG = {
+    yearly:   { step: 1000, minPh: 'e.g. 80000', maxPh: 'e.g. 120000', hint: 'Displayed as {sym}80K–{sym}120K/yr', showMax: true },
+    hourly:   { step: 1,    minPh: 'e.g. 25',    maxPh: 'e.g. 40',     hint: 'Displayed as {sym}25–{sym}40/hr',    showMax: true },
+    monthly:  { step: 100,  minPh: 'e.g. 5000',  maxPh: 'e.g. 8000',   hint: 'Displayed as {sym}5K–{sym}8K/mo',   showMax: true },
+    stipend:  { step: 100,  minPh: 'e.g. 2000',  maxPh: '',            hint: 'Displayed as {sym}2K stipend',   showMax: false },
+    contract: { step: 1000, minPh: 'e.g. 10000', maxPh: 'e.g. 20000',  hint: 'Displayed as {sym}10K–{sym}20K (project)', showMax: true },
+};
+
+function currentCurrencySymbol() {
+    const sel = document.getElementById('salaryCurrency');
+    const opt = sel && sel.selectedOptions[0];
+    return (opt && opt.dataset.symbol) || '$';
+}
+
+function updateSalaryHints() {
+    const pt = document.getElementById('payType').value;
+    const cfg = PAY_CONFIG[pt] || PAY_CONFIG.yearly;
+    const sym = currentCurrencySymbol();
+    const minInput = document.getElementById('salaryMin');
+    const maxInput = document.getElementById('salaryMax');
+    const maxGroup = document.getElementById('salaryMaxGroup');
+    minInput.step = cfg.step;
+    minInput.placeholder = cfg.minPh;
+    maxInput.placeholder = cfg.maxPh;
+    maxGroup.style.display = cfg.showMax ? '' : 'none';
+    document.getElementById('currencySymbolMin').textContent = sym;
+    document.getElementById('currencySymbolMax').textContent = sym;
+
+    const minVal = parseFloat(minInput.value);
+    const maxVal = parseFloat(maxInput.value);
+    const hintEl = document.getElementById('salaryHint');
+    if (minVal) {
+        const fmt = n => (n >= 1000 && pt !== 'hourly') ? `${sym}${Math.round(n / 1000)}K` : `${sym}${Number(n).toLocaleString()}`;
+        const sfx = { yearly: '/yr', hourly: '/hr', monthly: '/mo', stipend: ' stipend', contract: ' (project)' }[pt] || '/yr';
+        let preview = fmt(minVal);
+        if (maxVal && maxVal > minVal && cfg.showMax) preview += `–${fmt(maxVal)}`;
+        hintEl.textContent = `Will display as: ${preview}${sfx}`;
+        hintEl.style.color = 'var(--primary)';
+    } else {
+        hintEl.textContent = cfg.hint.replaceAll('{sym}', sym);
+        hintEl.style.color = '';
+    }
+    updateChecklist();
+}
+
+updateSalaryHints();
+
+function toggleCityInput() {
+    const wt = document.getElementById('workType').value;
+    const wrap = document.getElementById('cityInputWrap');
+    const needsCity = wt === 'Hybrid' || wt === 'On-site';
+    wrap.style.display = needsCity ? '' : 'none';
+    document.getElementById('locationCity').required = needsCity;
+}
+toggleCityInput();
+
+// ── Post checklist ──────────────────────────────────────────────────────
+function updateChecklist() {
+    const checks = [
+        { id: 'chk-title',     ok: !!document.getElementById('jobTitle')?.value.trim() },
+        { id: 'chk-description', ok: !!(buildDescriptionText().trim()) },
+        { id: 'chk-salary',    ok: !!(document.getElementById('salaryMin')?.value.trim()) },
+        { id: 'chk-focus',     ok: !!(document.getElementById('interviewFocus')?.value.trim()) },
+        { id: 'chk-questions', ok: document.querySelectorAll('.question-input').length > 0 },
+    ];
+    let done = 0;
+    checks.forEach(({ id, ok }) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const icon = el.querySelector('i');
+        if (ok) {
+            icon.className = 'fas fa-circle-check me-2 text-success';
+            done++;
+        } else {
+            icon.className = 'fas fa-circle-xmark me-2 text-danger';
+        }
+    });
+    const score = document.getElementById('checklistScore');
+    score.textContent = `${done} / ${checks.length}`;
+    score.className = done === checks.length ? 'badge bg-success' : done >= 2 ? 'badge bg-warning text-dark' : 'badge bg-secondary';
+}
+
+// Hook into form inputs
+const jobTitleEl = document.getElementById('jobTitle');
+if (jobTitleEl) jobTitleEl.addEventListener('input', updateChecklist);
+// Salary inputs drive updateSalaryHints which calls updateChecklist
+['salaryMin','salaryMax'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateSalaryHints);
+});
+// Description is built from textareas
+document.querySelectorAll('.desc-section').forEach(ta => ta.addEventListener('input', updateChecklist));
+// Interview focus
+const focusEl = document.getElementById('interviewFocus');
+if (focusEl) focusEl.addEventListener('input', updateChecklist);
+// "Add question" button also triggers a checklist update
+document.getElementById('addQuestionBtn').addEventListener('click', () => setTimeout(updateChecklist, 0));
+
+updateChecklist();
+
+// Any edit anywhere in the form schedules an auto-save (debounced), so a
+// reload never loses what was typed. select/checkbox changes fire 'change'
+// rather than 'input' in some browsers, so listen for both.
+document.getElementById('postJobForm').addEventListener('input', scheduleDraftSave);
+document.getElementById('postJobForm').addEventListener('change', scheduleDraftSave);
+
+restoreDraftIfAny();
+
+// Guided step navigation
+let currentStep = 1;
+const stepButtons = Array.from(document.querySelectorAll('.job-step'));
+const stepPanels = Array.from(document.querySelectorAll('.job-step-panel'));
+
+function showJobStep(step) {
+    currentStep = Math.max(1, Math.min(5, Number(step)));
+    stepButtons.forEach((button) => {
+        const number = Number(button.dataset.step);
+        button.classList.toggle('active', number === currentStep);
+        button.classList.toggle('complete', number < currentStep);
+    });
+    stepPanels.forEach((panel) => panel.classList.toggle('active', Number(panel.dataset.panel) === currentStep));
+    document.getElementById('prevStep').style.visibility = currentStep === 1 ? 'hidden' : 'visible';
+    document.getElementById('nextStep').style.display = currentStep === 5 ? 'none' : 'inline-flex';
+    document.getElementById('publishSubmit').style.display = currentStep === 5 ? 'inline-flex' : 'none';
+    updateReviewAndPreview();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+stepButtons.forEach((button) => button.addEventListener('click', () => showJobStep(button.dataset.step)));
+document.getElementById('nextStep').addEventListener('click', () => showJobStep(currentStep + 1));
+document.getElementById('prevStep').addEventListener('click', () => showJobStep(currentStep - 1));
+document.getElementById('publishTop').addEventListener('click', () => showJobStep(5));
+document.getElementById('saveDraftTop').addEventListener('click', () => document.getElementById('saveDraftSubmit').click());
+
+function chipText(container) {
+    return Array.from(container.querySelectorAll('.job-chip')).map((chip) => chip.firstChild.textContent.trim());
+}
+
+function addChip(containerId, inputId) {
+    const container = document.getElementById(containerId);
+    const input = document.getElementById(inputId);
+    const value = input.value.trim();
+    if (!value) return;
+    const chip = document.createElement('span');
+    chip.className = 'job-chip' + (containerId === 'preferredSkills' ? ' neutral' : '');
+    chip.append(document.createTextNode(value + ' '));
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.innerHTML = '<i class="fas fa-xmark"></i>';
+    remove.addEventListener('click', () => chip.remove());
+    chip.appendChild(remove);
+    container.appendChild(chip);
+    input.value = '';
+    updateReviewAndPreview();
+    scheduleDraftSave();
+}
+
+document.querySelectorAll('.job-chip button').forEach((button) => button.addEventListener('click', () => button.closest('.job-chip').remove()));
+document.getElementById('addRequiredSkill').addEventListener('click', () => addChip('requiredSkills', 'requiredSkillInput'));
+document.getElementById('addPreferredSkill').addEventListener('click', () => addChip('preferredSkills', 'preferredSkillInput'));
+
+document.getElementById('sec_what_you_do').addEventListener('input', (event) => {
+    document.getElementById('responsibilityCount').textContent = `${event.target.value.length} / 1500`;
+});
+
+function updateReviewAndPreview() {
+    const title = document.getElementById('jobTitle').value.trim();
+    const workType = document.getElementById('workType').value;
+    const employment = document.querySelector('[name=employment_type]').value;
+    const minSalary = document.getElementById('salaryMin').value;
+    const maxSalary = document.getElementById('salaryMax').value;
+    const currency = document.getElementById('salaryCurrency').selectedOptions[0]?.textContent || 'USD';
+    const about = document.getElementById('sec_about').value.trim();
+    document.getElementById('previewTitle').textContent = title || 'Senior Backend Engineer';
+    document.getElementById('previewMeta').textContent = `${workType} · ${employment}`;
+    document.getElementById('previewSalary').textContent = minSalary ? `${currency} ${Number(minSalary).toLocaleString()}${maxSalary ? ' - ' + Number(maxSalary).toLocaleString() : ''}` : 'Salary not disclosed';
+    document.getElementById('previewDescription').textContent = about || 'A clear overview of the role will appear here.';
+    document.getElementById('previewDescription').classList.toggle('preview-skeleton', !about);
+    document.getElementById('previewSkills').innerHTML = chipText(document.getElementById('requiredSkills')).map((skill) => `<span>${skill}</span>`).join('');
+    document.getElementById('reviewTitle').textContent = title || 'Not set';
+    document.getElementById('reviewWorkType').textContent = workType;
+    document.getElementById('reviewEmployment').textContent = employment;
+    document.getElementById('reviewSalary').textContent = minSalary ? `${currency} ${Number(minSalary).toLocaleString()}${maxSalary ? ' - ' + Number(maxSalary).toLocaleString() : ''}` : 'Not set';
+}
+
+document.getElementById('postJobForm').addEventListener('input', updateReviewAndPreview);
+document.getElementById('postJobForm').addEventListener('change', updateReviewAndPreview);
+
+function setChecklistState(id, complete) {
+    const item = document.getElementById(id);
+    if (!item) return;
+    item.classList.toggle('done', complete);
+    const icon = item.querySelector('i');
+    icon.className = complete ? 'fas fa-circle-check' : 'fas fa-circle-xmark';
+}
+
+function refreshJobChecklist() {
+    const checks = {
+        'chk-title': !!document.getElementById('jobTitle').value.trim(),
+        'chk-location': !!document.getElementById('workType').value,
+        'chk-description': !!document.getElementById('sec_about').value.trim(),
+        'chk-responsibilities': !!document.getElementById('sec_what_you_do').value.trim(),
+        'chk-requirements': !!document.getElementById('sec_requirements').value.trim(),
+        'chk-salary': !!document.getElementById('salaryMin').value,
+        'chk-focus': !!document.getElementById('interviewFocus').value.trim(),
+        'chk-questions': !!document.querySelectorAll('.question-input').length || document.getElementById('enableAiInterview').checked,
+    };
+    let done = 0;
+    Object.entries(checks).forEach(([id, complete]) => {
+        setChecklistState(id, complete);
+        if (complete) done++;
+    });
+    document.getElementById('checklistScore').textContent = `${done} / 8`;
+    document.getElementById('qualityScore').textContent = `${Math.max(35, done * 12)}%`;
+}
+document.getElementById('postJobForm').addEventListener('input', refreshJobChecklist);
+document.getElementById('postJobForm').addEventListener('change', refreshJobChecklist);
+
+function improveDescription() {
+    runJobAi('improve');
+}
+
+function suggestSkills() {
+    runJobAi('suggest_skills');
+}
+
+function templateData(name) {
+    return {
+        backend: { title: 'Senior Backend Engineer', category: 'Software / Engineering', skills: ['Java', 'Spring Boot', 'Microservices'], desc: 'Build reliable services and APIs for production systems.' },
+        devops: { title: 'DevOps Engineer', category: 'IT / Operations', skills: ['Docker', 'Kubernetes', 'CI/CD'], desc: 'Automate delivery, improve infrastructure, and maintain reliable environments.' },
+        cloud: { title: 'Cloud Engineer', category: 'IT / Operations', skills: ['AWS', 'Terraform', 'Linux'], desc: 'Design and operate secure, scalable cloud infrastructure.' },
+    }[name];
+}
+
+document.querySelectorAll('.job-template-list button').forEach((button) => button.addEventListener('click', () => {
+    const data = templateData(button.dataset.template);
+    if (!data) return;
+    document.getElementById('jobTitle').value = data.title;
+    document.getElementById('sec_about').value = data.desc;
+    const container = document.getElementById('requiredSkills');
+    container.innerHTML = '';
+    data.skills.forEach((skill) => {
+        const chip = document.createElement('span');
+        chip.className = 'job-chip';
+        chip.append(document.createTextNode(skill + ' '));
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.innerHTML = '<i class="fas fa-xmark"></i>';
+        remove.addEventListener('click', () => chip.remove());
+        chip.appendChild(remove);
+        container.appendChild(chip);
+    });
+    updateReviewAndPreview();
+    refreshJobChecklist();
+    scheduleDraftSave();
+}));
+
+function collectJobAiContext() {
+    const current = buildDescriptionJSON();
+    let sections = {};
+    try { sections = JSON.parse(current); } catch (_) {}
+    return {
+        title: document.getElementById('jobTitle').value.trim(),
+        work_type: document.getElementById('workType').value,
+        employment_type: document.querySelector('[name=employment_type]').value,
+        category: document.querySelector('[name=category]').value,
+        experience_level: document.getElementById('experienceLevel').value,
+        location: document.getElementById('locationCity').value.trim(),
+        about: sections.about,
+        responsibilities: sections.what_you_do,
+        requirements: sections.requirements,
+        preferred: sections.preferred,
+        contract_terms: sections.contract_terms,
+        salary_min: document.getElementById('salaryMin').value,
+        salary_max: document.getElementById('salaryMax').value,
+        interview_focus: document.getElementById('interviewFocus').value,
+        required_skills: chipText(document.getElementById('requiredSkills')),
+        preferred_skills: chipText(document.getElementById('preferredSkills')),
+    };
+}
+
+function applyGeneratedChip(containerId, values, neutral) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    (values || []).slice(0, 12).forEach((value) => {
+        if (!value) return;
+        const chip = document.createElement('span');
+        chip.className = 'job-chip' + (neutral ? ' neutral' : '');
+        chip.append(document.createTextNode(value + ' '));
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.innerHTML = '<i class="fas fa-xmark"></i>';
+        remove.addEventListener('click', () => chip.remove());
+        chip.appendChild(remove);
+        container.appendChild(chip);
+    });
+}
+
+function applyGeneratedJob(data) {
+    const set = (id, value) => {
+        const element = document.getElementById(id);
+        if (element && value !== undefined && value !== null) element.value = value;
+    };
+    set('jobTitle', data.title);
+    set('sec_about', data.about);
+    set('sec_what_you_do', data.responsibilities);
+    set('sec_requirements', data.requirements);
+    set('sec_preferred', data.preferred);
+    set('sec_contract_terms', data.contract_terms);
+    set('interviewFocus', data.interview_focus);
+    set('salaryMin', data.salary_min || '');
+    set('salaryMax', data.salary_max || '');
+    if (data.work_type) document.getElementById('workType').value = data.work_type;
+    if (data.employment_type) document.querySelector('[name=employment_type]').value = data.employment_type;
+    if (data.category) {
+        const category = document.querySelector('[name=category]');
+        if ([...category.options].some(option => option.value === data.category)) category.value = data.category;
+    }
+    if (data.experience_level) {
+        const experience = document.getElementById('experienceLevel');
+        if ([...experience.options].some(option => option.value === data.experience_level)) experience.value = data.experience_level;
+    }
+    applyGeneratedChip('requiredSkills', data.required_skills, false);
+    applyGeneratedChip('preferredSkills', data.preferred_skills, true);
+    if (data.quality_score) document.getElementById('qualityScore').textContent = `${data.quality_score}%`;
+    updateSalaryHints();
+    toggleCityInput();
+    updateReviewAndPreview();
+    refreshJobChecklist();
+    scheduleDraftSave();
+}
+
+async function runJobAi(action) {
+    const prompt = document.getElementById('aiPrompt').value.trim();
+    const button = action === 'generate' ? document.getElementById('aiGenerateJob') : null;
+    if (action === 'generate' && !prompt) {
+        document.getElementById('aiPrompt').focus();
+        return;
+    }
+    const original = button?.innerHTML;
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    }
+    try {
+        const response = await fetch('/employer/jobs/ai-assist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, prompt, current_job: collectJobAiContext() }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'AI generation failed.');
+        applyGeneratedJob(data.generated || {});
+    } catch (error) {
+        const panel = document.getElementById('jdAnalysisResult');
+        if (panel) panel.innerHTML = `<li><i class="fas fa-circle-exclamation"></i> ${error.message}</li>`;
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = original;
+        }
+    }
+}
+
+document.getElementById('aiGenerateJob').addEventListener('click', () => runJobAi('generate'));
+document.querySelectorAll('[data-ai="title"]').forEach((button) => {
+    button.addEventListener('click', () => runJobAi('generate'));
+});
+
+document.getElementById('publishSubmit').addEventListener('click', (event) => {
+    if (!document.getElementById('publishConfirm').checked) {
+        event.preventDefault();
+        document.getElementById('publishConfirm').closest('.job-review-confirm').classList.add('needs-confirmation');
+        document.getElementById('publishConfirm').focus();
+    }
+});
+
+showJobStep(1);
+updateReviewAndPreview();
+refreshJobChecklist();
+</script>
+{% endblock %}

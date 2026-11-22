@@ -1,0 +1,24 @@
+            </div>
+        </div><!-- /pane-notes -->
+
+        <!-- ── MESSAGES TAB ── -->
+        <div id="pane-messages-{{ app.id }}" style="display:none;">
+            <div class="detail-section">
+                <div class="detail-section-label">Message Candidate</div>
+                <div id="msgFeed-{{ app.id }}"
+                     style="max-height:320px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px;font-size:0.85rem;">
+                    <div class="text-muted text-center py-3" style="font-size:0.82rem;">Loading…</div>
+                </div>
+                <div class="d-flex gap-2">
+                    <input type="text" id="msgInput-{{ app.id }}" class="form-control form-control-sm"
+                           placeholder="Type a message…"
+                           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg({{ app.id }});}">
+                    <button class="btn btn-primary btn-sm px-3" onclick="sendMsg({{ app.id }})">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div><!-- /pane-messages -->
+
+    </div><!-- /pipeline-body -->
+</div><!-- /pipeline-card -->

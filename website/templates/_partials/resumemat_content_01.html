@@ -1,0 +1,340 @@
+{% include "_community_resume_count.html" %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12 text-center mb-4">
+            <h1 class="display-5 fw-bold text-primary">Resume Job Matching <span class="badge bg-secondary align-middle" style="font-size:0.9rem; font-weight:600; letter-spacing:0.03em; vertical-align:middle;">COMMUNITY EDITION</span></h1>
+            <p class="lead text-muted">Match your resume against job descriptions to see how well you fit</p>
+        </div>
+    </div>
+
+    {% if not current_user.is_authenticated %}
+    <div class="alert d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3" style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:12px;padding:14px 20px;">
+      <span style="color:#1e3a5f;font-size:0.95rem;"><i class="fas fa-lock me-2" style="color:#3b82f6;"></i><strong>Sign in to use this tool</strong> - it's free and takes less than a minute.</span>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('auth.login', next=request.path) }}" class="btn btn-primary btn-sm btn-rounded"><i class="fas fa-sign-in-alt me-1"></i>Sign In</a>
+        <a href="{{ url_for('auth.sign_up', next=request.path) }}" class="btn btn-outline-primary btn-sm btn-rounded"><i class="fas fa-user-plus me-1"></i>Sign Up Free</a>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h3 class="mb-0"><i class="fas fa-file-upload me-2"></i>Upload & Analyze</h3>
+                </div>
+                <div class="card-body position-relative">
+                    <div id="loading-overlay" class="spinner-overlay" style="display: none;">
+                        <div class="spinner"></div>
+                        <p class="fw-bold text-primary">Comparing resume - please wait...</p>
+                        <p class="text-muted fst-italic">This usually takes up to 15 seconds...</p>
+                    </div>
+                    
+                    <div id="error-message" class="error-message"></div>
+                    
+                    <form id="resumeMatchForm" method="POST" enctype="multipart/form-data" action="/resume-jobmatch">
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Job Description</label>
+                            <textarea class="form-control" name="job_req" placeholder="Paste the job description here..." rows="8">{{ job_text or '' }}</textarea>
+                            <div class="form-text">Enter the complete job description to match against your resume</div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Upload Resume</label>
+                            <div class="upload-area" id="upload-area">
+                                <i class="fas fa-cloud-upload-alt fa-2x text-primary mb-3" id="upload-icon"></i>
+                                <p class="mb-1" id="upload-main-text">Drag & drop your resume here</p>
+                                <p class="text-muted small">or</p>
+                                <button type="button" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-folder-open me-1"></i>Browse Files
+                                </button>
+                            </div>
+                            <input id="file-upload" name="resume" type="file" class="d-none" accept=".pdf,.docx,.txt">
+                            <div class="mt-2">
+                                <span id="file-name" class="file-name">No file chosen</span>
+                            </div>
+                            <div class="form-text">Supported formats: PDF, DOCX, TXT (Max 5MB)</div>
+                        </div>
+                        
+                        <div class="d-grid">
+                            {% if current_user.is_authenticated %}
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-search me-2"></i>Analyze Match
+                            </button>
+                            {% else %}
+                            <a href="{{ url_for('auth.login', next=request.path) }}" class="btn btn-primary btn-lg" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;">
+                                <i class="fas fa-sign-in-alt"></i> Sign In to Analyze
+                            </a>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ── Match Results + Chat (stacked, centre column) ── -->
+        <div class="col-lg-4 d-flex flex-column gap-3">
+
+            <!-- Match Results -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Match Results</h3>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-2">
+                        <div class="score-circle mx-auto">
+                            <svg viewBox="0 0 36 36" class="circular-chart">
+                                <path class="circle-bg"
+                                      stroke="#eee"
+                                      d="M18 2.0845
+                                         a 15.9155 15.9155 0 0 1 0 31.831
+                                         a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                <path class="circle"
+                                      d="M18 2.0845
+                                         a 15.9155 15.9155 0 0 1 0 31.831
+                                         a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                <text x="18" y="18" class="percentage">{{ score_value or 0 }}%</text>
+                            </svg>
+                        </div>
+                        <h5 class="mt-1 mb-0">Match Score</h5>
+                        <small class="text-muted">0-30: Poor | 31-60: Fair | 61-80: Good | 81+: Excellent</small>
+                    </div>
+
+                    <div class="result-box">
+                        <h6 class="mb-2">Detailed Analysis</h6>
+                        {# .analysis-content is ALWAYS in the DOM so the View button can populate it #}
+                        <div class="analysis-content">
+                            {% if result %}
+                                {% set lines = result.split('\n') %}
+                                {% for line in lines %}
+                                    {% if line.strip() %}
+                                        {% if 'score' in line.lower() %}
+                                            <p class="fw-bold fs-6">{{ line }}</p>
+                                        {% elif line.startswith('+') %}
+                                            <p class="ms-2 mb-1">
+                                                <i class="fa-solid fa-circle-check text-success me-1"></i>
+                                                <span>{{ line[1:].strip() }}</span>
+                                            </p>
+                                        {% elif line.startswith('-') %}
+                                            <p class="ms-2 mb-1">
+                                                <i class="fa-solid fa-circle-xmark text-danger me-1"></i>
+                                                <span class="text-danger">{{ line[1:].strip() }}</span>
+                                            </p>
+                                        {% else %}
+                                            <p class="mb-1 fw-semibold">{{ line }}</p>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center py-5" id="analysis-empty-state">
+                                    <i class="fas fa-file-search fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">Submit a job description and resume to see the match analysis</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resume Coach Chat - directly below the analysis text -->
+            <div class="card" id="chat-card">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fas fa-robot fa-lg"></i>
+                        <h5 class="mb-0">Resume Coach</h5>
+                    </div>
+                </div>
+                <div class="card-body d-flex flex-column" style="padding:14px;">
+                    <div id="chat-messages" class="chat-messages" style="min-height:180px; max-height:320px;">
+                        <!-- Initial AI greeting -->
+                        <div class="chat-message ai-msg">
+                            <div class="chat-avatar ai"><i class="fas fa-robot"></i></div>
+                            <div class="chat-bubble ai-bubble">
+                                Hi! I'm your Resume Coach. Ask me anything - how to improve your resume,
+                                what skills to add, how to rewrite bullet points, or how well you match this role.
+                                Run a job match above for personalised advice!
+                            </div>
+                        </div>
+                        <!-- Typing indicator -->
+                        <div id="chat-typing" class="chat-message ai-msg" style="display:none;">
+                            <div class="chat-avatar ai"><i class="fas fa-robot"></i></div>
+                            <div class="typing-bubble">
+                                <span class="dot"></span>
+                                <span class="dot"></span>
+                                <span class="dot"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if current_user.is_authenticated %}
+                    <div class="chat-input-row" style="margin-top:10px;">
+                        <input type="text" id="chat-input" class="form-control form-control-sm"
+                               placeholder="Ask anything about your resume…" />
+                        <button id="chat-send" class="btn btn-primary btn-sm px-3">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <div class="mt-2 d-flex flex-wrap gap-1" id="chat-suggestions">
+                        <button class="btn btn-outline-secondary btn-sm suggestion-btn" style="font-size:0.75rem;">What skills am I missing?</button>
+                        <button class="btn btn-outline-secondary btn-sm suggestion-btn" style="font-size:0.75rem;">Improve my bullet points</button>
+                        <button class="btn btn-outline-secondary btn-sm suggestion-btn" style="font-size:0.75rem;">Is my resume too long?</button>
+                        <button class="btn btn-outline-secondary btn-sm suggestion-btn" style="font-size:0.75rem;">What goes in my summary?</button>
+                    </div>
+                    {% else %}
+                    <a href="{{ url_for('auth.login', next=request.path) }}" class="btn btn-outline-primary btn-sm w-100 mt-2">
+                        <i class="fas fa-sign-in-alt me-1"></i> Sign In to Chat
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ── Saved Results (resume matches, then video scans right underneath) ──
+             The first card grows to fill the column's full stretched height
+             (matching the Upload/Match Results columns beside it) instead of
+             sitting at its own compact height and leaving a bare gap below -
+             only the Saved Video Scans card underneath it stays a fixed size. -->
+        <div class="col-lg-4 d-flex flex-column gap-3">
+            <div class="card flex-grow-1" style="min-height:0;">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>Saved Results
+                    </h5>
+                </div>
+                <div class="card-body" style="flex:1 1 auto; min-height:0; overflow-y:auto;">
+                    <div id="history-list"></div>
+                    <div id="empty-history" class="text-center text-muted">
+                        No saved analyses yet
+                    </div>
+                </div>
+            </div>
+
+            {% if current_user.is_authenticated %}
+            <div class="card" style="flex-shrink:0;">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-video me-2"></i>Saved Video Scans</h6>
+                </div>
+                <div class="card-body" style="max-height:260px; overflow-y:auto;">
+                    <div id="video-history-list"></div>
+                    <div id="video-empty-history" class="text-center text-muted small">No saved scans yet</div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+    </div><!-- /row g-4 -->
+
+    <!-- ── Video Interview Feedback ── -->
+    <div class="row g-4 mt-1">
+        <div class="col-lg-7">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h3 class="mb-0"><i class="fas fa-video me-2"></i>Video Interview Feedback</h3>
+                </div>
+                <div class="card-body position-relative">
+                    <div id="video-loading-overlay" class="spinner-overlay" style="display: none;">
+                        <div class="spinner" id="video-progress-spinner"></div>
+                        <p class="fw-bold text-primary" id="video-progress-label">Uploading your video...</p>
+                        <div class="progress" style="width:280px; height:10px; margin:0 auto 8px;">
+                            <div class="progress-bar" id="video-upload-progress-bar" role="progressbar" style="width:0%;"></div>
+                        </div>
+                        <p class="text-muted fst-italic small" id="video-progress-subtext">0%</p>
+                    </div>
+
+                    <div id="video-error-message" class="error-message"></div>
+
+                    <p class="text-muted mb-3">Upload a video of yourself answering an interview question - we'll transcribe it and give you a candid report on what was good and what was bad, using the job description above for context if you've filled it in.</p>
+
+                    {% if current_user.is_authenticated %}
+                    <div class="upload-area" id="video-upload-area">
+                        <i class="fas fa-video fa-2x text-primary mb-3" id="video-upload-icon"></i>
+                        <p class="mb-1" id="video-upload-main-text">Drag & drop your interview video here</p>
+                        <p class="text-muted small">or</p>
+                        <button type="button" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-folder-open me-1"></i>Browse Files
+                        </button>
+                    </div>
+                    <input id="video-file-upload" type="file" class="d-none" accept="video/*">
+                    <div class="mt-2">
+                        <span id="video-file-name" class="file-name">No file chosen</span>
+                    </div>
+                    <div class="form-text mb-3">MP4, WebM, MOV, etc. No length limit - longer videos just take a bit longer to process.</div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold mb-1">Also upload your resume (optional)</label>
+                        <input id="video-resume-upload" type="file" class="form-control form-control-sm" accept=".pdf,.docx,.txt">
+                        <div class="form-text">We'll cross-check your answers against it and flag anything that doesn't line up.</div>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="button" id="video-analyze-btn" class="btn btn-primary btn-lg" disabled>
+                            <i class="fas fa-magnifying-glass me-2"></i>Scan My Interview
+                        </button>
+                    </div>
+                    <div id="video-jd-hint" style="display:none;" class="form-text text-warning mt-2">
+                        <i class="fas fa-triangle-exclamation me-1"></i>Add a job description above to also get a fit score and 10 tailored practice questions.
+                    </div>
+                    {% else %}
+                    <a href="{{ url_for('auth.login', next=request.path) }}" class="btn btn-primary btn-lg" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;">
+                        <i class="fas fa-sign-in-alt"></i> Sign In to Analyze
+                    </a>
+                    {% endif %}
+
+                    <div id="video-results" style="display:none;" class="mt-2">
+                        <hr>
+                        <div class="coaching-wrap">
+                            <div id="video-job-fit" style="display:none;" class="mb-4 text-start">
+                                <div class="small fw-bold text-muted text-uppercase mb-1 text-center" style="letter-spacing:0.05em; font-size:0.68rem;">Fit for this role (based on what you said)</div>
+                                <div class="text-center">
+                                    <span class="badge" id="video-job-fit-badge" style="font-size:0.85rem; padding:6px 14px;">-</span>
+                                </div>
+                                <p class="text-muted small mt-2 mb-0 text-center" id="video-job-fit-reasoning"></p>
+                                <div id="video-job-fit-missed-wrap" style="display:none;" class="coaching-block mt-3">
+                                    <div class="coaching-block-title"><i class="fas fa-circle-exclamation me-1" style="color:var(--warning);"></i>From the JD, never addressed</div>
+                                    <div id="video-job-fit-missed"></div>
+                                </div>
+                            </div>
+                            <div class="score-ring-lg" id="videoScoreRing">-</div>
+                            <div class="fw-bold mb-1" style="font-size:1rem;" id="videoScoreLabel">Overall Score</div>
+                            <div class="score-ring-fill">
+                                <div class="score-ring-fill-bar" id="videoScoreBar"></div>
+                            </div>
+                            <p class="text-muted small mb-1" id="video-communication-score-line" style="display:none;"></p>
+                            <p class="text-muted small mb-4">This is private and only visible to you.</p>
+                            <div class="coaching-grid" id="videoCoachingGrid"></div>
+                        </div>
+                        <details class="mt-2">
+                            <summary class="text-muted small" style="cursor:pointer;">View transcript</summary>
+                            <p id="video-transcript" class="small text-muted mt-2" style="white-space:pre-wrap;"></p>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Practice Questions - populated after a scan completes ── -->
+        <div class="col-lg-5">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-list-check me-2"></i>Practice Questions</h5>
+                </div>
+                <div class="card-body">
+                    <div id="practice-questions-empty" class="text-center text-muted py-5">
+                        <i class="fas fa-clipboard-question fa-2x mb-3"></i>
+                        <p class="mb-0">Scan a video on the left to get 10 tailored practice questions for this role.</p>
+                    </div>
+                    <div id="practice-questions-loading" style="display:none;" class="text-center text-muted py-5">
+                        <div class="spinner" style="position:static; display:inline-block; margin-bottom:12px;"></div>
+                        <p class="mb-0">Generating questions for this role...</p>
+                    </div>
+                    <ol id="practice-questions-list" style="display:none; padding-left:1.2rem;"></ol>
+                </div>
+            </div>
+        </div>
+    </div><!-- /row g-4 video feedback -->
+
+    {# Always present - provides initial context; JS can override via updateChatContext() #}
+    <script type="application/json" id="resume-chat-data">{{ {"jobText": job_text or "", "analysis": result or ""} | tojson }}</script>
+
+</div><!-- /container-fluid -->

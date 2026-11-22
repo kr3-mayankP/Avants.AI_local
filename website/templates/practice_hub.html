@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block title %}Practice Interview Hub{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/practice_hub.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="practice-wrap">
+
+<!-- Setup screen -->
+<div id="setupScreen">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="text-center mb-3">
+                <span class="community-badge"><i class="fas fa-dumbbell me-1"></i> Practice Interview Hub &middot; Community Edition</span>
+            </div>
+            <h1 class="text-center" style="font-size:1.4rem; font-weight:800; margin-bottom:6px;">Build your practice interview</h1>
+            <p class="text-center text-muted mb-4" style="font-size:0.9rem;">
+                Not tied to any job application. Rehearse with AI-generated questions from a job description,
+                or bring your own list of requirements to be interviewed on.
+            </p>
+
+            <div class="setup-card">
+                <div class="mode-select-tabs">
+                    <div class="mode-select-tab active" id="modeCardAi" onclick="selectSetupMode('ai')">
+                        <div class="mst-title"><i class="fas fa-wand-magic-sparkles me-2"></i>AI-generated from a job</div>
+                        <div class="mst-desc">Paste a job description (or write your own) and let AI build the questions.</div>
+                    </div>
+                    <div class="mode-select-tab" id="modeCardManual" onclick="selectSetupMode('manual')">
+                        <div class="mst-title"><i class="fas fa-list-check me-2"></i>Manual requirements</div>
+                        <div class="mst-desc">Type the exact requirements or questions you want to be interviewed on.</div>
+                    </div>
+                </div>
+
+                <div class="setup-field">
+                    <label for="titleInput">Job title / role you're practicing for</label>
+                    <input type="text" id="titleInput" placeholder="e.g. Senior Backend Engineer" maxlength="200">
+                </div>
+
+                <!-- AI-generated mode fields -->
+                <div id="aiModeFields">
+                    <div class="setup-field">
+                        <label for="descriptionInput">Job description</label>
+                        <textarea id="descriptionInput" rows="6" placeholder="Paste the job description you want to be interviewed against…"></textarea>
+                        <div class="hint">AI reads this and asks concrete, role-specific questions grounded in what it says.</div>
+                    </div>
+                </div>
+
+                <!-- Manual mode fields -->
+                <div id="manualModeFields" style="display:none;">
+                    <div class="setup-field">
+                        <label for="requirementsInput">Your requirements / questions (one per line)</label>
+                        <textarea id="requirementsInput" rows="6" placeholder="e.g.&#10;5+ years of Python experience&#10;Has led a team of engineers&#10;Tell me about a time you shipped under a tight deadline"></textarea>
+                        <div class="hint">These are worked into the interview verbatim or close to it - up to 15 will be used.</div>
+                    </div>
+                    <div class="setup-field">
+                        <label for="manualContextInput">Extra context <span class="text-muted fw-normal">(optional)</span></label>
+                        <textarea id="manualContextInput" rows="3" placeholder="Anything else the interviewer should know about the role…"></textarea>
+                    </div>
+                </div>
+
+                <div class="setup-row">
+                    <div class="setup-field">
+                        <label for="lengthSelect">Interview length</label>
+                        <select id="lengthSelect">
+                            <option value="short">Short (~3-4 questions)</option>
+                            <option value="standard" selected>Standard (~5-8 questions)</option>
+                            <option value="thorough">Thorough (~8-12 questions)</option>
+                        </select>
+                    </div>
+                    <div class="setup-field">
+                        <label for="focusInput">Focus areas <span class="text-muted fw-normal">(optional)</span></label>
+                        <input type="text" id="focusInput" placeholder="e.g. dig into system design experience" maxlength="500">
+                    </div>
+                </div>
+
+                <div id="setupError" class="text-danger small mb-2" style="display:none;"></div>
+
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    <button class="btn btn-primary px-4" onclick="startFromSetup()">
+                        <i class="fas fa-play me-2"></i> Start Practice Interview
+                    </button>
+                    <button class="btn btn-outline-secondary" id="previewQuestionsBtn" onclick="showSampleQuestions()">
+                        <i class="fas fa-list-ul me-2"></i> Preview sample questions
+                    </button>
+                </div>
+                {% if not current_user.is_authenticated %}
+                <p class="text-muted small mt-3 mb-0"><i class="fas fa-circle-info me-1"></i>You'll be asked to log in before the session starts - your inputs here are kept.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Interview screen (hidden until started) -->
+<div id="interviewScreen" style="display:none;">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+
+            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                <span class="practice-badge"><i class="fas fa-dumbbell me-1"></i> Practice Mode</span>
+                <div style="flex:1; min-width:160px; max-width:280px;">
+                    <div style="background:var(--bg); border-radius:999px; height:6px; overflow:hidden;">
+                        <div id="progressBar" style="height:100%; width:0%; background:var(--primary); border-radius:999px; transition:width 0.5s;"></div>
+                    </div>
+                    <div class="d-flex justify-content-between mt-1" style="font-size:0.7rem; color:var(--text-muted);">
+                        <span id="progressFraction">Warming up…</span>
+                        <span id="progressPct"></span>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="showSampleQuestions()" title="See a list of sample questions for this role" id="viewQuestionsBtn">
+                    <i class="fas fa-list-ul"></i>
+                </button>
+            </div>
+
+            <div class="interview-main" id="interviewMain">
+
+                <div class="ai-question-area">
+                    <div class="ai-avatar" id="avatar"><img src="{{ url_for('static', filename='interviewer/interviewer-1.png') }}" alt="AI interviewer"></div>
+                    <div class="q-label" id="qLabel">
+                        <i class="fas fa-spinner fa-spin me-1" id="connectingSpinner"></i> Connecting…
+                    </div>
+                    <div class="ai-question-text" id="questionText" style="color:var(--text-muted); font-size:1rem;">Setting up your practice session…</div>
+                    <div id="connectError" style="display:none; margin-top:12px;">
+                        <p class="text-danger small mb-2" id="connectErrorMsg"></p>
+                        <button class="btn btn-outline-primary btn-sm" onclick="retryConnect()">
+                            <i class="fas fa-rotate-right me-1"></i> Try again
+                        </button>
+                    </div>
+                </div>
+
+                <div id="transcriptWrap" style="border-top:1px solid var(--border); max-height:220px; overflow-y:auto; padding:12px 20px; display:none;">
+                    <div id="transcriptBody" style="display:flex; flex-direction:column; gap:8px;"></div>
+                </div>
+
+                <div class="input-area" id="inputArea" style="display:none;">
+
+                    <div class="mode-tabs mb-3">
+                        <button class="mode-tab active" id="tabVoice" onclick="switchMode('voice')">
+                            <i class="fas fa-microphone me-1"></i> Voice
+                        </button>
+                        <button class="mode-tab" id="tabText" onclick="switchMode('text')">
+                            <i class="fas fa-keyboard me-1"></i> Type
+                        </button>
+                    </div>
+
+                    <div id="voiceMode">
+                        <div class="voice-controls">
+                            <button id="recordBtn" class="record-btn" onclick="handleRecordClick()">
+                                <i class="fas fa-microphone" id="recordIcon"></i>
+                            </button>
+                            <div class="record-timer" id="recordTimer">0:00</div>
+                            <div class="record-status-text" id="recordStatus">Tap to start recording</div>
+                        </div>
+
+                        <div class="answer-preview" id="answerPreview">
+                            <div class="answer-preview-label">We heard:</div>
+                            <div id="previewText"></div>
+                            <div class="d-flex gap-2 mt-3">
+                                <button class="btn btn-outline-secondary btn-sm" onclick="reRecord()">
+                                    <i class="fas fa-rotate-left me-1"></i> Re-record
+                                </button>
+                                <button class="btn btn-primary btn-sm" onclick="submitVoiceAnswer()">
+                                    Submit answer <i class="fas fa-arrow-right ms-1"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-input-area" id="textMode">
+                        <textarea id="textAnswer" placeholder="Type your answer here…"></textarea>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <span class="text-muted" style="font-size:0.76rem;" id="wordCount">0 words</span>
+                            <button class="btn btn-primary btn-sm" onclick="submitTextAnswer()">
+                                Submit answer <i class="fas fa-arrow-right ms-1"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="processing-overlay" id="processingOverlay">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span id="processingMsg">Processing…</span>
+                    </div>
+
+                    <div class="text-center mt-3" id="wrapUpRow">
+                        <button class="btn btn-link btn-sm text-muted" style="font-size:0.78rem;" onclick="wrapUp()">
+                            End session early &amp; get coaching report
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Coaching report -->
+<div id="reportScreen" style="display:none;">
+    <div class="row justify-content-center">
+        <div class="col-lg-7">
+            <div class="text-center mb-3">
+                <span class="practice-badge"><i class="fas fa-dumbbell me-1"></i> Practice Complete</span>
+            </div>
+            <div class="interview-main">
+                <div class="coaching-wrap">
+                    <div class="score-ring-lg" id="scoreRing">-</div>
+                    <div class="fw-bold mb-1" style="font-size:1rem;">Communication Score</div>
+                    <div class="score-ring-fill">
+                        <div class="score-ring-fill-bar" id="scoreBar"></div>
+                    </div>
+                    <p class="text-muted small mb-4" id="reportSubtitle">This is private and never shown to anyone.</p>
+                    <div class="coaching-grid" id="coachingGrid"></div>
+                    <div class="mt-5 d-flex flex-column align-items-center gap-2">
+                        <a href="{{ url_for('candidate.browse_jobs') }}" class="btn btn-primary px-5">
+                            <i class="fas fa-search me-1"></i> Browse Real Jobs
+                        </a>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+                            <i class="fas fa-rotate-left me-1"></i> Practice Again
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sample questions modal -->
+<div class="modal fade" id="sampleQuestionsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-list-ul me-2" style="color:var(--primary);"></i>Sample questions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:0.82rem;">
+                    A fresh set generated from your job description - useful to prepare with, but the live session
+                    is a real conversation, not a fixed script, so don't expect it to ask exactly these.
+                </p>
+                <div id="sampleQuestionsLoading" class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin text-muted"></i>
+                </div>
+                <ol id="sampleQuestionsList" class="d-none" style="font-size:0.9rem; line-height:1.9;"></ol>
+                <p id="sampleQuestionsError" class="text-danger d-none" style="font-size:0.85rem;"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="showSampleQuestions()">
+                    <i class="fas fa-rotate me-1"></i> Generate a different set
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</div><!-- /practice-wrap -->
+{% endblock %}
+
+{% block scripts %}
+{% include "_partials/practice_hub_scripts_01.html" %}
+{% include "_partials/practice_hub_scripts_02.html" %}
+{% endblock %}

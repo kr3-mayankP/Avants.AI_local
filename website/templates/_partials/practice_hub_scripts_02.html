@@ -1,0 +1,208 @@
+    if (state === 'recording' && mediaRecorder) {
+        // Don't send a request here - stopping the recorder fires the
+        // 'stop' event, and onRecordStop() (which checks wrappingUp) owns
+        // transcribing this answer and sending the wrap-up request so it
+        // isn't thrown away or double-submitted.
+        mediaRecorder.stop();
+        stopTimer();
+        recordBtn.classList.remove('recording');
+        recordIcon.className = 'fas fa-microphone';
+        return;
+    }
+
+    // An answer may already be sitting transcribed-but-unsubmitted in the
+    // preview (recorded, reviewed, not yet confirmed) - carry it into the
+    // wrap-up request instead of silently dropping it too.
+    const pendingText = window._pendingResult?.transcribed_answer || window._pendingResult?.text_answer || '';
+    answerPreview.style.display = 'none';
+    window._pendingResult = null;
+    pendingBlob = null;
+
+    setProcessing('Generating coaching report…');
+    try {
+        const fd = buildChatForm({ wrap_up: 'true', text_answer: pendingText });
+        const res = await fetchWithRetry(CHAT_URL, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed.');
+        if (pendingText) {
+            addBubble('user', pendingText);
+            history.push({ role: 'user', content: pendingText });
+        }
+        history.push({ role: 'assistant', content: data.reply });
+        state = 'done';
+        if (data.coaching) showCoachingReport(data.coaching);
+    } catch (e) {
+        wrappingUp = false;
+        clearProcessing();
+        recordStatus.textContent = e.message;
+    }
+}
+
+function lockInput(msg) {
+    recordBtn.disabled = true;
+    recordStatus.textContent = msg || 'Wait for the question…';
+    const textBtn = document.querySelector('#textMode button');
+    if (textBtn) textBtn.disabled = true;
+    document.getElementById('wrapUpRow').style.pointerEvents = 'none';
+    document.getElementById('wrapUpRow').style.opacity = '0.4';
+}
+
+function unlockInput() {
+    if (state === 'processing' || state === 'done') return;
+    recordBtn.disabled = false;
+    recordStatus.textContent = 'Tap to start recording';
+    const textBtn = document.querySelector('#textMode button');
+    if (textBtn) textBtn.disabled = false;
+    document.getElementById('wrapUpRow').style.pointerEvents = '';
+    document.getElementById('wrapUpRow').style.opacity = '';
+}
+
+function setQuestion(text) {
+    questionNum++;
+    qLabel.textContent = `Question ${questionNum}`;
+    questionText.textContent = text;
+    questionText.style.color = '';
+    questionText.style.fontSize = '';
+
+    const pct = Math.min(Math.round(((questionNum - 1) / ESTIMATED_Q) * 100), 90);
+    progressBar.style.width = pct + '%';
+    progressFraction.textContent = `Q${questionNum} of ~${ESTIMATED_Q}`;
+    progressPct.textContent = pct + '%';
+
+    lockInput('Read the question above, then answer…');
+    setTimeout(unlockInput, 1500);
+}
+
+function addBubble(role, text) {
+    const label = document.createElement('div');
+    label.className = 't-bubble-label';
+    label.textContent = role === 'ai' ? 'AI Interviewer' : 'You';
+
+    const bubble = document.createElement('div');
+    bubble.className = `t-bubble ${role}`;
+    bubble.appendChild(label);
+    bubble.appendChild(document.createTextNode(text));
+    transcriptBody.appendChild(bubble);
+
+    const wrap = document.getElementById('transcriptWrap');
+    wrap.style.display = 'block';
+    wrap.scrollTop = wrap.scrollHeight;
+}
+
+async function fetchWithRetry(url, options, maxAttempts = 3, delayMs = 1500) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            return await fetch(url, options);
+        } catch (e) {
+            if (attempt === maxAttempts) throw e;
+            await new Promise(r => setTimeout(r, delayMs * attempt));
+        }
+    }
+}
+
+function showConnectError(msg) {
+    document.getElementById('connectingSpinner').style.display = 'none';
+    qLabel.textContent = 'Connection failed';
+    questionText.textContent = '';
+    questionText.style.color = '';
+    const errEl = document.getElementById('connectError');
+    document.getElementById('connectErrorMsg').textContent = msg;
+    errEl.style.display = 'block';
+}
+
+async function connectAndStart() {
+    document.getElementById('connectingSpinner').style.display = '';
+    document.getElementById('connectError').style.display = 'none';
+    qLabel.innerHTML = '<i class="fas fa-spinner fa-spin me-1" id="connectingSpinner"></i> Connecting…';
+    questionText.textContent = 'Setting up your practice session…';
+    questionText.style.color = 'var(--text-muted)';
+    questionText.style.fontSize = '1rem';
+
+    try {
+        const fd = buildChatForm({ wrap_up: 'false' });
+        const res = await fetchWithRetry(CHAT_URL, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Server error. Please try again.');
+
+        history.push({ role: 'assistant', content: data.reply });
+        addBubble('ai', data.reply);
+
+        questionText.style.color = '';
+        questionText.style.fontSize = '';
+        document.getElementById('connectError').style.display = 'none';
+        document.getElementById('qLabel').innerHTML = '';
+
+        setQuestion(data.reply);
+        inputArea.style.display = 'block';
+        switchMode('voice');
+    } catch (e) {
+        showConnectError('Couldn\'t connect to the practice session. Check your internet connection and try again.');
+    }
+}
+
+function retryConnect() {
+    connectAndStart();
+}
+
+function beginInterview(setup) {
+    currentSetup = setup;
+    document.getElementById('viewQuestionsBtn').style.display = setup.mode === 'ai' ? '' : 'none';
+    document.getElementById('setupScreen').style.display = 'none';
+    document.getElementById('interviewScreen').style.display = 'block';
+    inputArea.style.display = 'none';
+    connectAndStart();
+}
+
+function showCoachingReport(coaching) {
+    document.getElementById('interviewScreen').style.display = 'none';
+    document.getElementById('reportScreen').style.display = 'block';
+
+    const cs = coaching.communication_score || 0;
+    const color = cs >= 75 ? 'var(--success)' : (cs >= 50 ? 'var(--warning)' : 'var(--danger)');
+
+    const ring = document.getElementById('scoreRing');
+    ring.textContent = cs;
+    ring.style.borderColor = color;
+    ring.style.color = color;
+
+    setTimeout(() => {
+        const bar = document.getElementById('scoreBar');
+        bar.style.background = color;
+        bar.style.width = cs + '%';
+    }, 100);
+
+    const grid = document.getElementById('coachingGrid');
+    let html = '';
+
+    if (coaching.strengths?.length) {
+        html += `<div class="coaching-block">
+            <div class="coaching-block-title"><i class="fas fa-check-circle me-1" style="color:var(--success);"></i>What you did well</div>`;
+        coaching.strengths.forEach(s => {
+            html += `<div class="coaching-item"><div class="ci-dot ci-s"><i class="fas fa-check"></i></div><span>${s}</span></div>`;
+        });
+        html += '</div>';
+    }
+
+    if (coaching.improvements?.length) {
+        html += `<div class="coaching-block">
+            <div class="coaching-block-title"><i class="fas fa-arrow-trend-up me-1" style="color:var(--warning);"></i>Areas to improve</div>`;
+        coaching.improvements.forEach(i => {
+            html += `<div class="coaching-item"><div class="ci-dot ci-i"><i class="fas fa-triangle-exclamation"></i></div><span>${i}</span></div>`;
+        });
+        html += '</div>';
+    }
+
+    if (coaching.tips?.length) {
+        html += `<div class="coaching-block">
+            <div class="coaching-block-title"><i class="fas fa-lightbulb me-1" style="color:var(--primary);"></i>Tips for your real interview</div>`;
+        coaching.tips.forEach(t => {
+            html += `<div class="coaching-item"><div class="ci-dot ci-t"><i class="fas fa-lightbulb"></i></div><span>${t}</span></div>`;
+        });
+        html += '</div>';
+    }
+
+    grid.innerHTML = html || '<p class="text-muted small text-center">Great effort!</p>';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+</script>
